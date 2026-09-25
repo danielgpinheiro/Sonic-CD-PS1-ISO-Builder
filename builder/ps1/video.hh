@@ -23,6 +23,7 @@ int       PS1VideoHeight();
 // one requested frame when its sectors have arrived.
 bool PS1VideoIsOpen();
 int  PS1VideoFrameCount();   // frames in the open STR
+uint32_t PS1VideoDataSectors(); // data (video) sectors the open STR delivers
 void PS1VideoRequestFrame(); // one more frame wanted (NextVideoFrame)
 int  PS1VideoService();      // 1 = hand over PS1VideoPixels() now, 0 = nothing new, -1 = closed
 int  PS1VideoDecode(uint32_t t0); // decode ahead until the frame budget (counted from t0) is spent; -1 = EOF/error

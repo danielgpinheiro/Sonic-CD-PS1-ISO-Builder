@@ -53,6 +53,20 @@ int  DecDCTinSync(int mode);
 void DecDCTout(uint32_t *data, size_t length);
 int  DecDCToutSync(int mode);
 
+/* Port additions: the MDEC without DMA (PIO), bounded waits (hblanks), fault recovery. */
+#define DECDCT_STAT_OUT_EMPTY 0x80000000u // MDEC1: data-out FIFO empty
+#define DECDCT_STAT_IN_FULL   0x40000000u // MDEC1: data-in FIFO full (or last word received)
+#define DECDCT_STAT_BUSY      0x20000000u // MDEC1: command busy
+static inline uint32_t DecDCTStatus(void) { return *(volatile uint32_t *)0xBF801824u; }
+static inline void     DecDCTPutWord(uint32_t w) { *(volatile uint32_t *)0xBF801820u = w; }
+static inline uint32_t DecDCTGetWord(void) { return *(volatile uint32_t *)0xBF801820u; }
+int  DecDCTCommandPIO(uint32_t command);                  // waits for "busy" to clear; 0 / -1 timeout
+int  DecDCTParamsPIO(const uint32_t *data, size_t words); // word by word, waiting for input FIFO room
+int  DecDCTResetPIO(const DECDCTENV *env);                // reset, DMA requests off, tables by the CPU
+void DecDCTAbort(uint32_t control);                       // stop both MDEC DMAs, reset (tables kept), MDEC1 = control
+void DecDCTControl(uint32_t control);                     // MDEC1 (control): DMA request enables, bits 30 (in) / 29 (out)
+void DecDCTSnapshot(uint32_t out[8]);                     // MDEC1, DMA0 MADR/BCR/CHCR, DMA1 MADR/BCR/CHCR, DPCR
+
 /* VLC decode (pure C, BS v1/v2; the 34 KB table is built by DecDCTvlcBuild). */
 int  DecDCTvlcStart2(VLC_Context *ctx, uint32_t *buf, size_t max_size, const uint32_t *bs);
 int  DecDCTvlcContinue2(VLC_Context *ctx, uint32_t *buf, size_t max_size);

@@ -35,7 +35,7 @@
 #define S6 0x30fb
 #define S7 0x18f8
 
-static const DECDCTENV _default_mdec_env = {
+static const DECDCTENV _default_mdec_env __attribute__((aligned(4))) = { // read as words (PIO)
     // MPEG-1 quant table, first value 2 (zigzag order; byte-identical to
     // psxavenc's quant_dec after the zigzag reorder).
     .iq_y = {
@@ -79,8 +79,11 @@ static void setDmaPriority(int dma, int priority) {
 }
 
 void DecDCTReset(int mode) {
-    setDmaPriority(DMA_MDEC_IN, 3);
-    setDmaPriority(DMA_MDEC_OUT, 3);
+    // MDEC-in above MDEC-out, as the BIOS default DPCR (07654321h) that ps1-tests' MDEC tests ran with on
+    // hardware. PSn00bSDK's 3/3 lets MDEC-out win the tie; on the PSone every MDEC-out DMA then timed out
+    // with the CPU starved (docs/28 appendix 12, part 2).
+    setDmaPriority(DMA_MDEC_IN, 1);
+    setDmaPriority(DMA_MDEC_OUT, 2);
     DMA_CHCR(DMA_MDEC_IN)  = 0x00000201; // Stop DMA
     DMA_CHCR(DMA_MDEC_OUT) = 0x00000200; // Stop DMA
 
@@ -167,6 +170,77 @@ int DecDCToutSync(int mode) {
             return 0;
     }
     return -1;
+}
+
+/* ---------------------------------------------------------------------------
+ * Port additions (docs/28 appendix 12, part 2): the MDEC without DMA, bounded waits, fault recovery.
+ * PIO follows ps1-tests common/mdec.cpp, whose primitives ran on hardware: a command waits for "command
+ * busy" to clear, a parameter word for "data-in FIFO full" to clear, a pixel word for "data-out FIFO
+ * empty" to clear (psx-spx macroblockdecodermdec.md, MDEC1 status bits 29-31).
+ * ------------------------------------------------------------------------- */
+
+#define COUNTER1 MMIO32(0xBF801110u) // root counter 1: hblanks under psyqo
+
+// Waits until (MDEC1 & mask) == 0, at most `limit` hblanks. 0 = ok, -1 = timeout.
+static int waitClear(uint32_t mask, uint32_t limit) {
+    uint32_t t0 = COUNTER1;
+    while (MDEC1 & mask) {
+        if (((COUNTER1 - t0) & 0xffff) > limit)
+            return -1;
+    }
+    return 0;
+}
+
+#define PIO_WAIT_HBL 1000 // ~64 ms: a macroblock takes ~0.1 ms, a table load far less
+
+int DecDCTCommandPIO(uint32_t command) {
+    if (waitClear(1u << 29, PIO_WAIT_HBL) < 0)
+        return -1;
+    MDEC0 = command;
+    return 0;
+}
+
+int DecDCTParamsPIO(const uint32_t *data, size_t words) {
+    while (words--) {
+        if (waitClear(1u << 30, PIO_WAIT_HBL) < 0)
+            return -1;
+        MDEC0 = *data++;
+    }
+    return 0;
+}
+
+int DecDCTResetPIO(const DECDCTENV *env) {
+    if (!env)
+        env = &_default_mdec_env;
+    DMA_CHCR(DMA_MDEC_IN)  = 0x00000201; // no MDEC DMA in this mode
+    DMA_CHCR(DMA_MDEC_OUT) = 0x00000200;
+    MDEC1 = 0x80000000; // reset
+    MDEC1 = 0x00000000; // DMA requests off: the CPU moves every word
+    if (DecDCTCommandPIO(0x60000000) < 0 || DecDCTParamsPIO((const uint32_t *)env->dct, 32) < 0)
+        return -1; // MDEC(3): scale table
+    if (DecDCTCommandPIO(0x40000001) < 0 || DecDCTParamsPIO((const uint32_t *)env->iq_y, 32) < 0)
+        return -1; // MDEC(2): luma + chroma quant tables
+    return waitClear(1u << 29, PIO_WAIT_HBL);
+}
+
+void DecDCTAbort(uint32_t control) {
+    DMA_CHCR(DMA_MDEC_IN)  = 0x00000201; // stop both MDEC DMAs (start bit cleared)
+    DMA_CHCR(DMA_MDEC_OUT) = 0x00000200;
+    MDEC1 = 0x80000000;                   // abort the command; the tables survive a reset (psx-spx)
+    MDEC1 = control;                      // DMA requests of the mode: 60000000h both, 40000000h in only, 0 none
+}
+
+void DecDCTControl(uint32_t control) { MDEC1 = control; }
+
+void DecDCTSnapshot(uint32_t out[8]) {
+    out[0] = MDEC1;
+    out[1] = DMA_MADR(DMA_MDEC_IN);
+    out[2] = DMA_BCR(DMA_MDEC_IN);
+    out[3] = DMA_CHCR(DMA_MDEC_IN);
+    out[4] = DMA_MADR(DMA_MDEC_OUT);
+    out[5] = DMA_BCR(DMA_MDEC_OUT);
+    out[6] = DMA_CHCR(DMA_MDEC_OUT);
+    out[7] = DMA_DPCR;
 }
 
 /* ---------------------------------------------------------------------------

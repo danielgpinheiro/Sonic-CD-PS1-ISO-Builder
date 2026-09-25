@@ -1,11 +1,15 @@
 # SonicCD-PS1.exe
 
-The PlayStation executable (PS-X EXE, 382976 bytes) that `build_iso.py` puts on the disc as `PSX.EXE`:
+The PlayStation executable (PS-X EXE, 391168 bytes) that `build_iso.py` puts on the disc as `PSX.EXE`:
 Retro Engine v3 (RSDKv3 decompilation) ported to the PS1 with psyqo.
 
-- Built from the RSDKv3-ps1 port at commit `1e583ad` (2026-09-25), natural boot, retail 2 MB RAM.
-- SHA-256 `a9d0cd7f78b9afca08768a241ef24ca9e5eee345cb3ac95ed34ef039ce7bba11` (also in `SHA256SUMS`).
+- Built from the RSDKv3-ps1 port at commit `8d7c1cd` (2026-09-25), natural boot, retail 2 MB RAM.
+- SHA-256 `5d54a691c66d3f1048cc582aef6802e543a67b99ab3e214f4ffc10afd6f11240` (also in `SHA256SUMS`).
 - One executable for both languages: it reads the disc's language (`Data/Game/PS1Language.bin`, written by
   the builder's `--lang`).
 - It reads the converted assets from the disc (`Data/...`); the converters in `../builder/` must match this
   executable's formats, so use the builder from the same release.
+- Real hardware (tested on a PSone, SCPH-101):
+  - The CPU drives the MDEC for the videos, because the MDEC's output DMA failed on that console.
+  - It guards against CD and DMA interrupts lost by psyqo's interrupt acknowledge.
+  - During a video, SELECT shows a diagnostics line at the bottom.

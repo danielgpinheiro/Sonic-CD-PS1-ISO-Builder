@@ -56,7 +56,7 @@ uses directly:
 
 Built from the Steam files **without** a license file and with the tool versions listed under
 [Requirements](#requirements), the English image is
-`SonicCD-PS1-EN.bin` SHA-256 `fbd70a01ec9ae7aaf4de05d905d01976e425a61b8c455a55141113b2cb0fea84`.
+`SonicCD-PS1-EN.bin` SHA-256 `d4a1f6c4faec0d7e08d2d73d576404266ac82ce8747d6dcf32a122509e38d094`.
 Other versions of FFmpeg or psxavenc may encode the music and videos slightly differently, which changes
 the hash but not the game. With a license file the license sectors differ, so the hash does too.
 
@@ -146,7 +146,8 @@ pass `--license licensea.dat` to make a disc that also boots on retail NTSC-U co
 - **Emulator:** open `SonicCD-PS1-EN.cue` in PCSX-Redux or DuckStation. Put a memory card in slot 1 to
   save.
 - **Real hardware:** burn the BIN/CUE at the slowest speed on a CD-R, or copy it to an optical drive
-  emulator. Not yet tested on a console — reports are welcome.
+  emulator. Tested on a PSone (SCPH-101) from a CD-R: the game and its videos play. Reports from other
+  consoles are welcome.
 
 ## How it's made
 

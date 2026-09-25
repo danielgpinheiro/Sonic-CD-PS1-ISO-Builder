@@ -1,0 +1,297 @@
+#!/usr/bin/python3
+"""PS1 edits to Sonic CD's script bytecode, applied to the disc tree at build time (docs/28, user test
+fixes 2026-09-25). The engine runs the scripts unchanged; only their data changes here.
+
+Help & Options (user decision 2026-09-25: no HOW TO PLAY, no CONTROLS). The PC build's HELP & OPTIONS
+button (Menu Button, PS001.bin) opens `Options Menu C`: HOW TO PLAY / CONTROLS / SETTINGS / STAFF
+CREDITS, whose entries call native PC dialogs through engine callbacks. The stage also carries the
+console version, `Options Menu`: INSTRUCTIONS / SETTINGS / STAFF CREDITS / ABOUT, all in-script (its
+SETTINGS window sets music / SFX volume and the spin dash style; INSTRUCTIONS loads the Help stage). On
+PS1 the button opens `Options Menu`, without INSTRUCTIONS:
+  - Menu Button: ResetObjectEntity 62, <Options Menu C> -> <Options Menu>;
+  - Options Menu main: cursor wraps over 3 entries (the constants 3 -> 2); the switches on the entry
+    (OBJECTVALUE1: music stop, the entry's action, the stage it loads) see entry k + 1 of the original;
+  - its entry labels (sprite frames 10-13, highlighted 14-17) move up one, so entry k shows label k + 1;
+  - draw: the 4th entry slot is moved off screen (its `Add OBJECTYPOS, 40` -> -1000).
+Special stages (docs/28 special-stage speed): Special Setup's draw sub, a bubble sort of draw list 3 in
+script, becomes one PS1SortDrawList instruction (a PS1 engine opcode running the same loop natively); SS5's
+BGEffects deformation ramp loop becomes PS1DeformRamp.
+Every edit is found by its instruction pattern and checked (count and operands); anything unexpected
+stops the build. Already patched files are recognised and left alone.
+
+Usage: patch_bytecode.py DATA_DIR
+"""
+import os, struct, sys
+
+HERE = os.path.dirname(os.path.abspath(__file__))
+sys.path.insert(0, os.path.join(HERE, '..'))
+import bytecode_scan as bs  # noqa: E402
+import bytecode_dis as bd  # noqa: E402
+
+
+def rstr(b, i):
+    n = b[i]
+    return b[i + 1:i + 1 + n].decode('latin1'), i + 1 + n
+
+
+def object_index(data, stage, name):
+    b = open(os.path.join(data, 'Stages', stage, 'StageConfig.bin'), 'rb').read()
+    i = 1 + 96
+    n = b[i]
+    i += 1
+    names = []
+    for _ in range(n):
+        s, i = rstr(b, i)
+        names.append(s)
+    return names.index(name), names
+
+
+def encode(values):
+    """RSDKv3 bytecode block encoding (LoadBytecode): header h, n = h & 0x7F values, 4 bytes each if
+    h >= 0x80 else 1 byte each (0..255)."""
+    out = bytearray(struct.pack('<I', len(values)))
+    i = 0
+    while i < len(values):
+        small = 0 <= values[i] <= 255
+        j = i
+        while j < len(values) and j - i < 127 and (0 <= values[j] <= 255) == small:
+            j += 1
+        out.append(j - i if small else 0x80 | (j - i))
+        for v in values[i:j]:
+            out += bytes([v]) if small else struct.pack('<i', v)
+        i = j
+    return bytes(out)
+
+
+def instructions(code, start, names, vars_):
+    """(position, name, operands) from `start` to the sub's End; operand = (kind, value, position of
+    the value): kind 'var' (value = (name, array flag)), 'int' or 'str'."""
+    out, p = [], start
+    while p < len(code):
+        at, op = p, code[p]
+        p += 1
+        name, size = names[op]
+        ops = []
+        for _ in range(size):
+            t = code[p]
+            p += 1
+            if t == 1:
+                arr = code[p]
+                p += 1
+                idx = None
+                if arr in (1, 2, 3):
+                    idx = (code[p], code[p + 1])  # (1 = array position register, else constant), value
+                    p += 2
+                ops.append(('var', (vars_[code[p]].replace('VAR_', ''), arr) if idx is None else
+                            (vars_[code[p]].replace('VAR_', ''), arr, idx), p))
+                p += 1
+            elif t == 2:
+                ops.append(('int', code[p], p))
+                p += 1
+            else:
+                p += code[p] // 4 + 2
+                ops.append(('str', None, p))
+        out.append((at, name, ops))
+        if name in ('End', 'EndFunction'):
+            break
+    return out
+
+
+def one(items, what):
+    if len(items) != 1:
+        sys.exit('ERROR patch_bytecode: expected one %s, found %d' % (what, len(items)))
+    return items[0]
+
+
+def patch_options(data):
+    names, vars_ = bs.tables()
+    path = os.path.join(data, 'Scripts', 'ByteCode', 'PS001.bin')  # presentation stage 1 = Menu
+    raw = open(path, 'rb').read()
+    code, p = bs.blocks(raw, 0)
+    jt, p2 = bs.blocks(raw, p)
+    tail = raw[p2:]
+    button, objs = object_index(data, 'Menu', 'Menu Button')
+    opts, _ = object_index(data, 'Menu', 'Options Menu')
+    optsc, _ = object_index(data, 'Menu', 'Options Menu C')
+    type_opts, type_optsc = opts + 1, optsc + 1  # object types: 0 = none, then the stage's objects (no globals)
+    subs = bs.subs(path)
+    _, jptrs = bd.jump_tables(path)
+
+    # Menu Button: HELP & OPTIONS opens Options Menu.
+    bmain = instructions(code, subs[button][0], names, vars_)
+    reset = [i for i in bmain if i[1] == 'ResetObjectEntity' and [o[1] for o in i[2][:2]] in ([62, type_optsc], [62, type_opts])]
+    at, _, ops = one(reset, 'ResetObjectEntity 62, <options>')
+    if ops[1][1] == type_opts:
+        return 'already patched'
+    code[ops[1][2]] = type_opts
+
+    main = instructions(code, subs[opts][0], names, vars_)
+    v1 = ('OBJECTVALUE1', 0)
+    # Cursor wrap: IfLower .., VALUE1, 0 / Equal VALUE1, 3  and  IfGreater .., VALUE1, 3 / Equal VALUE1, 0.
+    low = [main[k + 1] for k in range(len(main) - 1) if main[k][1] == 'IfLower' and main[k][2][1][1] == v1 and main[k][2][2][1] == 0
+           and main[k + 1][1] == 'Equal' and main[k + 1][2][0][1] == v1]
+    _, _, ops = one(low, 'cursor wrap up')
+    assert ops[1][1] == 3, ops
+    code[ops[1][2]] = 2
+    high = [main[k] for k in range(len(main) - 1) if main[k][1] == 'IfGreater' and main[k][2][1][1] == v1
+            and main[k + 1][1] == 'Equal' and main[k + 1][2][0][1] == v1 and main[k + 1][2][1][1] == 0]
+    _, _, ops = one(high, 'cursor wrap down')
+    assert ops[2][1] == 3, ops
+    code[ops[2][2]] = 2
+    # Switches on the entry: entry k does what entry k + 1 did.
+    sw = [i for i in main if i[1] == 'switch' and i[2][1][0] == 'var' and i[2][1][1] == v1]
+    if len(sw) != 3:
+        sys.exit('ERROR patch_bytecode: expected 3 switches on OBJECTVALUE1, found %d' % len(sw))
+    for _, _, ops in sw:
+        j = jptrs[opts][0] + ops[0][1]
+        lo, hi, dflt = jt[j], jt[j + 1], jt[j + 2]
+        assert (lo, hi) == (0, 3), (lo, hi)
+        jt[j + 4:j + 8] = jt[j + 5:j + 8] + [dflt]
+    # Labels: frames 10-13 and 14-17 (the startup's SpriteFrame list) move up one.
+    frames = [i for i in instructions(code, subs[opts][3], names, vars_) if i[1] == 'SpriteFrame']
+    assert len(frames) >= 18, len(frames)
+    for base in (10, 14):
+        vals = [[o[1] for o in frames[base + k][2]] for k in range(4)]
+        for k in range(4):
+            for o, v in zip(frames[base + k][2], vals[min(k + 1, 3)]):
+                code[o[2]] = v
+    # Draw: the 4th slot off screen.
+    draw = instructions(code, subs[opts][2], names, vars_)
+    adds = [i for i in draw if i[1] == 'Add' and i[2][0][1] == ('OBJECTYPOS', 0) and i[2][1][1] == 40]
+    calls = [k for k, i in enumerate(draw) if i[1] == 'CallFunction']
+    if len(adds) < 3 or len(calls) < 4:
+        sys.exit('ERROR patch_bytecode: Options Menu draw has %d slot steps, %d entry draws' % (len(adds), len(calls)))
+    code[adds[2][2][1][2]] = -1000
+
+    open(path, 'wb').write(encode(code) + encode(jt) + tail)
+    back = open(path, 'rb').read()
+    c2, q = bs.blocks(back, 0)
+    j2, q2 = bs.blocks(back, q)
+    assert c2 == code and j2 == jt and back[q2:] == tail
+    return 'HELP & OPTIONS -> %s (type %d, was %d): SETTINGS / STAFF CREDITS / ABOUT' % (objs[opts], type_opts, type_optsc)
+
+
+# Special Setup's draw sub in every special stage: sort draw list 3 by OBJECTVALUE5, descending (a bubble
+# sort in script, ~45 hblanks a frame) -> PS1SortDrawList 3, 5 (RSDKv3/Script.cpp: the same loop natively,
+# down to the temp values and array positions it leaves), then End.
+SS_SORT = [
+    ('Equal', [('var', ('TEMPVALUE0', 0)), ('int', 0)]),
+    ('Equal', [('var', ('TEMPVALUE1', 0)), ('var', ('SCREENDRAWLISTSIZE', 1, (0, 3)))]),
+    ('WLower', [('int', 0), ('var', ('TEMPVALUE0', 0)), ('var', ('TEMPVALUE1', 0))]),
+    ('Equal', [('var', ('TEMPVALUE2', 0)), ('var', ('TEMPVALUE1', 0))]),
+    ('Dec', [('var', ('TEMPVALUE2', 0))]),
+    ('WGreater', [('int', 2), ('var', ('TEMPVALUE2', 0)), ('var', ('TEMPVALUE0', 0))]),
+    ('Equal', [('var', ('TEMPVALUE3', 0)), ('var', ('TEMPVALUE2', 0))]),
+    ('Dec', [('var', ('TEMPVALUE2', 0))]),
+    ('GetDrawListEntityRef', [('var', ('ARRAYPOS0', 0)), ('int', 3), ('var', ('TEMPVALUE3', 0))]),
+    ('GetDrawListEntityRef', [('var', ('ARRAYPOS1', 0)), ('int', 3), ('var', ('TEMPVALUE2', 0))]),
+    ('IfGreater', [('int', 4), ('var', ('OBJECTVALUE5', 1, (1, 0))), ('var', ('OBJECTVALUE5', 1, (1, 1)))]),
+    ('SetDrawListEntityRef', [('var', ('ARRAYPOS0', 0)), ('int', 3), ('var', ('TEMPVALUE2', 0))]),
+    ('SetDrawListEntityRef', [('var', ('ARRAYPOS1', 0)), ('int', 3), ('var', ('TEMPVALUE3', 0))]),
+    ('endif', []),
+    ('loop', []),
+    ('Inc', [('var', ('TEMPVALUE0', 0))]),
+    ('loop', []),
+    ('End', []),
+]
+
+
+def game_stage_lists(data):
+    sys.path.insert(0, os.path.join(HERE, '..', 'disc'))
+    import gen_load_order
+    return gen_load_order.game_config(data)[2]
+
+
+def patch_ss_sort(data):
+    names, vars_ = bs.tables()
+    op = [n for n, _ in names].index('PS1SortDrawList')
+    done, already = [], []
+    for pos, (folder, _) in enumerate(game_stage_lists(data)[3]):  # the special stage list: SS000.bin...
+        path = os.path.join(data, 'Scripts', 'ByteCode', 'SS%03d.bin' % pos)
+        obj, _ = object_index(data, folder, 'Special Setup')
+        raw = open(path, 'rb').read()
+        code, p = bs.blocks(raw, 0)
+        rest = raw[p:]
+        start = bs.subs(path)[obj][2]
+        if code[start] == op:
+            already.append(folder)
+            continue
+        got = [(n, [(o[0], o[1]) for o in ops]) for _, n, ops in instructions(code, start, names, vars_)]
+        if got != SS_SORT:
+            sys.exit('ERROR patch_bytecode: %s Special Setup draw sub is not the expected draw-list sort' % folder)
+        code[start:start + 6] = [op, 2, 3, 2, 5, 0]  # PS1SortDrawList 3, 5 / End
+        open(path, 'wb').write(encode(code) + rest)
+        c2, q = bs.blocks(open(path, 'rb').read(), 0)
+        assert c2 == code
+        done.append(folder)
+    return 'draw-list sort native in %s%s' % (' '.join(done) or '-', ' (already: %s)' % ' '.join(already) if already else '')
+
+
+# Special stage BGEffects draw subs ending in a deformation ramp loop (SS5): -> PS1DeformRamp first, start,
+# parallax entry, shift (RSDKv3/Script.cpp: the same loop natively), then End. Constants taken from the code.
+def ramp_pattern(k):
+    """The loop's instructions with its constants as placeholders (None = any int, checked after)."""
+    return [
+        ('Equal', [('var', ('ARRAYPOS0', 0)), ('int', k['first'])]),
+        ('Equal', [('var', ('TEMPVALUE2', 0)), ('int', k['start'])]),
+        ('Equal', [('var', ('TEMPVALUE3', 0)), ('int', 0)]),
+        ('WGreater', [('int', k['j']), ('var', ('ARRAYPOS0', 0)), ('int', -1)]),
+        ('Equal', [('var', ('TEMPVALUE4', 0)), ('var', ('HPARALLAXSCROLLPOS', 1, (0, k['p'])))]),
+        ('Mul', [('var', ('TEMPVALUE4', 0)), ('var', ('TEMPVALUE2', 0))]),
+        ('ShR', [('var', ('TEMPVALUE4', 0)), ('int', k['shift'])]),
+        ('Equal', [('var', ('STAGEDEFORMATIONDATA2', 1, (1, 0))), ('var', ('TEMPVALUE4', 0))]),
+        ('Sub', [('var', ('TEMPVALUE2', 0)), ('var', ('TEMPVALUE3', 0))]),
+        ('Inc', [('var', ('TEMPVALUE3', 0))]),
+        ('Dec', [('var', ('ARRAYPOS0', 0))]),
+        ('loop', []),
+        ('End', []),
+    ]
+
+
+def patch_ss_ramp(data):
+    names, vars_ = bs.tables()
+    op = [n for n, _ in names].index('PS1DeformRamp')
+    done, already = [], []
+    for pos, (folder, _) in enumerate(game_stage_lists(data)[3]):
+        path = os.path.join(data, 'Scripts', 'ByteCode', 'SS%03d.bin' % pos)
+        try:
+            obj, _ = object_index(data, folder, 'BGEffects')
+        except ValueError:
+            continue
+        raw = open(path, 'rb').read()
+        code, p = bs.blocks(raw, 0)
+        rest = raw[p:]
+        ins = instructions(code, bs.subs(path)[obj][2], names, vars_)
+        if any(n == 'PS1DeformRamp' for _, n, _ in ins):
+            already.append(folder)
+            continue
+        for k in range(len(ins) - 12):
+            at, n, ops = ins[k]
+            if n != 'Equal' or ops[0][1] != ('ARRAYPOS0', 0) or ops[1][0] != 'int':
+                continue
+            seq = ins[k:k + 13]
+            try:
+                c = {'first': seq[0][2][1][1], 'start': seq[1][2][1][1], 'j': seq[3][2][0][1],
+                     'p': seq[4][2][1][1][2][1], 'shift': seq[6][2][1][1]}
+            except (IndexError, TypeError):
+                continue
+            got = [(nn, [(o[0], o[1]) for o in oo]) for _, nn, oo in seq]
+            if got != ramp_pattern(c):
+                continue
+            code[at:at + 10] = [op, 2, c['first'], 2, c['start'], 2, c['p'], 2, c['shift'], 0]  # ... / End
+            open(path, 'wb').write(encode(code) + rest)
+            assert bs.blocks(open(path, 'rb').read(), 0)[0] == code
+            done.append('%s (%d lines, factor %d, parallax %d, >> %d)' % (folder, c['first'] + 1, c['start'], c['p'], c['shift']))
+            break
+    return 'deformation ramp native in %s%s' % (', '.join(done) or '-', ' (already: %s)' % ' '.join(already) if already else '')
+
+
+def main():
+    data = sys.argv[1]
+    print('PS001.bin: ' + patch_options(data))
+    print('SS*.bin: ' + patch_ss_sort(data))
+    print('SS*.bin: ' + patch_ss_ramp(data))
+
+
+if __name__ == '__main__':
+    main()

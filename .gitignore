@@ -1,0 +1,5 @@
+output/
+__pycache__/
+builder/tools/rsdkmanifest/rsdkmanifest
+*.dSYM/
+.DS_Store

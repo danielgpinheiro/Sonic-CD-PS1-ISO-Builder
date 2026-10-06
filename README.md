@@ -56,7 +56,7 @@ uses directly:
 
 Built from the Steam files **without** a license file and with the tool versions listed under
 [Requirements](#requirements), the English image is
-`SonicCD-PS1-EN.bin` SHA-256 `d4a1f6c4faec0d7e08d2d73d576404266ac82ce8747d6dcf32a122509e38d094`.
+`SonicCD-PS1-EN.bin` SHA-256 `4ad7eaaf15b12c17de62042c69e4adb307837617a41712dfa15f1548f5a91214`.
 Other versions of FFmpeg or psxavenc may encode the music and videos slightly differently, which changes
 the hash but not the game. With a license file the license sectors differ, so the hash does too.
 

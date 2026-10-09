@@ -29,15 +29,16 @@ uses directly:
 
 ## Latest update: smoother and faster (October 2026)
 
-The game now runs much closer to full speed (measured in emulators):
+The game now runs at or very close to full speed almost everywhere (measured in emulators):
 
 - **All special stages run at full speed (60 fps).** Before, they ran at roughly 75–95 % speed.
 - **The ending credits run at full speed.** They used to crawl along at about a fifth of the normal speed.
-- **Most zones now hold 60 fps.** Collision Chaos and Stardust Speedway no longer slow down, and the busy parts of
-  Palmtree Panic, which used to slow down a lot, are now close to full speed. The title screen, the menus, Time
-  Attack and the D.A. Garden are faster too.
+- **The short freeze when you travel in time is much shorter** (less than half as long as before).
+- **Almost every zone now holds 60 fps.** Collision Chaos, Stardust Speedway and the others no longer slow down, and
+  the busy parts of Palmtree Panic, which used to slow down a lot, are now close to full speed.
+- **The title screen, the menus, Time Attack and the D.A. Garden run at full speed too.**
 - **Nothing looks or plays any differently**: the game was only made faster, and every change was checked against the
-  previous version, picture by picture.
+  previous version, picture by picture and frame by frame.
 
 Just rebuild your disc image with this version of the builder (same steps as before) to get the update.
 
@@ -70,7 +71,7 @@ Just rebuild your disc image with this version of the builder (same steps as bef
 
 Built from the Steam files **without** a license file and with the tool versions listed under
 [Requirements](#requirements), the English image is
-`SonicCD-PS1-EN.bin` SHA-256 `e8522a770a8deba554a06e48ea17ef0ec92ca71169e61bf694464f186968c5e0`.
+`SonicCD-PS1-EN.bin` SHA-256 `dd53b680c825a6622a97dd2a27e91344a50e2ace37a3f0ef59efb246d9252d81`.
 Other versions of FFmpeg or psxavenc may encode the music and videos slightly differently, which changes
 the hash but not the game. With a license file the license sectors differ, so the hash does too.
 
@@ -95,8 +96,9 @@ the license sectors, the file index, and every file against its source.
 - No online features: leaderboards and achievements are hidden.
 - Help & Options has no *How to play* or *Controls* entries (on PC they open Windows dialogs).
 - No dev menu, settings file or mods from the PC version.
-- A few busy moments still slow down: Tidal Tempest's first act in places, and the title screen a little. The PS1
-  draws every frame instead of skipping some.
+- A few busy moments still slow down: Tidal Tempest's first act in places (its background has more moving layers
+  than the PS1's video memory can hold ready-made), and Palmtree Panic's first act a little. The PS1 draws every frame
+  instead of skipping some.
 - Tested in emulators only (PCSX-Redux, including boot through a retail NTSC-U BIOS); not yet on a real
   console.
 

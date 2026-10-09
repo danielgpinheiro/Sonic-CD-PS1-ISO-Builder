@@ -505,6 +505,8 @@ const FunctionInfo functions[] = {
     FunctionInfo("PS1ParallaxRamp", 3),
     FunctionInfo("PS1TextLoop", 3),
     FunctionInfo("PS1UfoView", 2),
+    FunctionInfo("PS1SaveObjects", 3),
+    FunctionInfo("PS1TitleWater", 3),
 #endif
 };
 
@@ -938,6 +940,8 @@ enum ScrFunction {
     FUNC_PS1PARALLAXRAMP,
     FUNC_PS1TEXTLOOP,
     FUNC_PS1UFOVIEW,
+    FUNC_PS1SAVEOBJECTS,
+    FUNC_PS1TITLEWATER,
 #endif
     FUNC_MAX_CNT
 };
@@ -4530,6 +4534,110 @@ void ProcessScript(int scriptCodeStart, int jumpTableStart, byte scriptSub)
                     } while (p < end);
                 }
                 scriptEng.operands[1] = p; // the exit test's operands (WLower jt, pos0, end); the body's have at most 2
+                scriptCodePtr = scriptCodeStart + jumpTable[jumpTableStart + scriptEng.operands[0] + 1];
+                break;
+            }
+            case FUNC_PS1TITLEWATER: {
+                // The Title's Background draw sub draws the water strips in script: ~20 iterations of 13 VM instructions
+                // a frame (docs/28 speed pass 2):
+                //   while (t0 < end) { e = objectEntityList[pos0]; e.XPos += t1; if (e.XPos > 0x2000000) e.XPos -= 0x2000000;
+                //     t2 = e.XPos >> 16; ++pos0; DrawSpriteScreenXY t0, t2, 0; ++t0; DrawSpriteScreenXY t0, t2, 0; ++t0;
+                //     t1 += 8192 }
+                // The build-time patch checks the loop and swaps only its WLower opcode; the same loop natively (the
+                // jump stack slots, the operand registers), then the loop's exit.
+                opcodeSize = 0;
+                int *t = scriptEng.tempValue, &p0 = scriptEng.arrayPosition[0], end = scriptEng.operands[2];
+                int *js         = &jumpTableStack[jumpTableStackPos];
+                ObjectScript *si = PS1ScriptInfo();
+                auto draw = [&](int frame, int x, int y) { // FUNC_DRAWSPRITESCREENXY
+                    SpriteFrame *sf = &scriptFrames[si->frameListOffset + frame];
+                    DrawSprite(x + sf->pivotX, y + sf->pivotY, sf->width, sf->height, sf->sprX, sf->sprY, si->spriteSheetID);
+                };
+                while (t[0] < end) {
+                    js[1]    = scriptEng.operands[0];
+                    Entity &e = objectEntityList[p0];
+                    e.XPos    = (int)((uint)e.XPos + (uint)t[1]);
+                    js[2]     = 2;
+                    if (e.XPos > 0x2000000)
+                        e.XPos = (int)((uint)e.XPos - 0x2000000u);
+                    t[2] = e.XPos >> 16;
+                    ++p0;
+                    draw(t[0], t[2], 0);
+                    ++t[0];
+                    draw(t[0], t[2], 0);
+                    ++t[0];
+                    t[1] = (int)((uint)t[1] + 8192u);
+                }
+                scriptEng.operands[1] = t[0]; // the exit test's operand registers (WLower jt, t0, end)
+                scriptCodePtr = scriptCodeStart + jumpTable[jumpTableStart + scriptEng.operands[0] + 1];
+                break;
+            }
+            case FUNC_PS1SAVEOBJECTS: {
+                // Script function 46 (GS000), called by every time warp: it records in SAVERAM 7168-8191 which of the
+                // objects 32-1055 are gone (so the other time period keeps them gone): ~10,000 VM instructions in one
+                // frame, a 9-vsync freeze (docs/28 speed pass 2). The loop:
+                //   while (pos0 < 1056) { if (type == 0) bit(b, 1) else if (type == 12) bit(b, 1)
+                //     else if (type == 16) bit(b, state == 2) else if (type == 17) bit(b, state == 2)
+                //     else { bit(b, 0); bit(t1, type == GLOBAL[51]) }  ++pos0; ++pos1 }
+                // with bit(n, v) = SetBit SAVERAM[pos1], n, v and b = OBJECTPROPERTYVALUE[24]. The build-time patch checks
+                // the shape and swaps only the WLower opcode; the same loop natively (SetBit's 32-bit shift, the PS1 save
+                // RAM mapping), down to the jump stack slots its ifs push and the operand registers, then the loop's exit.
+                opcodeSize = 0;
+                int *ap = scriptEng.arrayPosition, end = scriptEng.operands[2];
+                int *js = &jumpTableStack[jumpTableStackPos];
+                auto setBit = [&](int bit, int v) { // SetBit SAVERAM[pos1], bit, v (fetch, operate, write back operand 0)
+                    int k = PS1SaveRamIndex(ap[1]);
+                    int x = 0;
+                    if (k >= 0)
+                        x = saveRAM[k];
+                    else
+                        g_ps1SaveRamOutOfRange = g_ps1SaveRamOutOfRange + 1;
+                    if (v <= 0)
+                        x &= ~(1 << (bit & 31));
+                    else
+                        x |= 1 << (bit & 31);
+                    if (k >= 0)
+                        saveRAM[k] = x;
+                    else
+                        g_ps1SaveRamOutOfRange = g_ps1SaveRamOutOfRange + 1;
+                };
+                while (ap[0] < end) {
+                    js[1] = scriptEng.operands[0]; // WLower's entry
+                    const Entity &e = objectEntityList[ap[0]];
+                    int b = objectEntityList[24].propertyValue, type = e.type;
+                    js[2] = 2;
+                    if (type == 0) {
+                        setBit(b, 1);
+                    }
+                    else {
+                        js[3] = 4;
+                        if (type == 12) {
+                            setBit(b, 1);
+                        }
+                        else {
+                            js[4] = 6;
+                            if (type == 16) {
+                                js[5] = 8;
+                                setBit(b, e.state == 2);
+                            }
+                            else {
+                                js[5] = 10;
+                                if (type == 17) {
+                                    js[6] = 12;
+                                    setBit(b, e.state == 2);
+                                }
+                                else {
+                                    setBit(b, 0);
+                                    js[6] = 14;
+                                    setBit(scriptEng.tempValue[1], type == globalVariables[51]);
+                                }
+                            }
+                        }
+                    }
+                    ++ap[0];
+                    ++ap[1];
+                }
+                scriptEng.operands[1] = ap[0]; // the exit test's operand registers (WLower 0, pos0, end)
                 scriptCodePtr = scriptCodeStart + jumpTable[jumpTableStart + scriptEng.operands[0] + 1];
                 break;
             }

@@ -510,6 +510,108 @@ def patch_ufo_view(data):
     return 'UFO view blocks native in %s%s' % (', '.join(done) or '-', ' (already: %s)' % ' '.join(already) if already else '')
 
 
+# Script function 46 (GS000), called by every time warp: its loop over objects 32-1055 recording which are gone in
+# SAVERAM 7168-8191 (docs/28 speed pass 2: ~10,000 VM instructions in one frame, a 9-vsync freeze). Only the loop's
+# WLower opcode becomes PS1SaveObjects (RSDKv3/Script.cpp: the same loop natively); the whole loop is checked here,
+# including the ifs' jump entries the engine reproduces (2-14) and the loop's own jump entries.
+def save_objects():
+    A = lambda n, a: ('var', (n, 1, a))
+    P24 = A('OBJECTPROPERTYVALUE', (0, 24))
+    TY, ST, SR = A('OBJECTTYPE', (1, 0)), A('OBJECTSTATE', (1, 0)), A('SAVERAM', (1, 1))
+    I = lambda v: ('int', v)
+    SB = lambda b, v: ('SetBit', [SR, b, I(v)])
+    return [('WLower', [I(0), V('ARRAYPOS0'), I(1056)]),
+            ('IfEqual', [I(2), TY, I(0)]), SB(P24, 1), ('else', []),
+            ('IfEqual', [I(4), TY, I(12)]), SB(P24, 1), ('else', []),
+            ('IfEqual', [I(6), TY, I(16)]), ('IfEqual', [I(8), ST, I(2)]), SB(P24, 1), ('else', []), SB(P24, 0), ('endif', []),
+            ('else', []),
+            ('IfEqual', [I(10), TY, I(17)]), ('IfEqual', [I(12), ST, I(2)]), SB(P24, 1), ('else', []), SB(P24, 0), ('endif', []),
+            ('else', []), SB(P24, 0),
+            ('IfEqual', [I(14), TY, A('GLOBAL', (0, 51))]), SB(V('TEMPVALUE1'), 1), ('else', []), SB(V('TEMPVALUE1'), 0),
+            ('endif', []), ('endif', []), ('endif', []), ('endif', []), ('endif', []),
+            ('Inc', [V('ARRAYPOS0')]), ('Inc', [V('ARRAYPOS1')]), ('loop', []), ('EndFunction', [])]
+
+
+def patch_save_objects(data):
+    names, vars_ = bs.tables()
+    nm = [n for n, _ in names]
+    op, wlower = nm.index('PS1SaveObjects'), nm.index('WLower')
+    path = os.path.join(data, 'Scripts', 'ByteCode', 'GS000.bin')
+    raw = open(path, 'rb').read()
+    code, p = bs.blocks(raw, 0)
+    jtab, _ = bs.blocks(raw, p)
+    funcs = bd.functions(path)
+    tmpl = save_objects()
+    starts = sorted(set(c for c, _ in funcs if 0 <= c < len(code))) + [len(code)]
+    for fi, (start, jstart) in enumerate(funcs):
+        if not 0 <= start < len(code):
+            continue
+        nxt = min(c for c in starts if c > start)  # the function's own code only
+        for at in range(start, min(start + 200, nxt)):
+            if code[at] not in (wlower, op):
+                continue
+            try:
+                ins = instructions(code, at, names, vars_)[:len(tmpl)]
+            except (IndexError, KeyError):
+                continue
+            ins = [(a, 'WLower' if (a == at and n == 'PS1SaveObjects') else n, o) for a, n, o in ins]
+            if not matches(ins, tmpl):
+                continue
+            loop_at = ins[-2][0]
+            if start + jtab[jstart] != at or start + jtab[jstart + 1] != loop_at + 1:
+                sys.exit('ERROR patch_bytecode: GS000 function %d: the save loop\'s jump entries' % fi)
+            if code[at] == op:
+                return 'object save loop native in - (already: GS000 function %d)' % fi
+            code[at] = op
+            open(path, 'wb').write(encode(code) + raw[p:])
+            assert bs.blocks(open(path, 'rb').read(), 0)[0] == code
+            return 'object save loop native in GS000 function %d @%d' % (fi, at)
+    return 'object save loop native in - (not found)'
+
+
+# The Title's Background draw sub: its water-strip loop (docs/28 speed pass 2). Only the WLower opcode becomes
+# PS1TitleWater (RSDKv3/Script.cpp); the whole loop is checked, including the IfGreater entry the engine writes (2).
+def title_water():
+    A = lambda n: ('var', (n, 1, (1, 0)))  # OBJECTXPOS[pos0]
+    I = lambda v: ('int', v)
+    return [('WLower', [I(0), V('TEMPVALUE0'), I(39)]), ('Add', [A('OBJECTXPOS'), V('TEMPVALUE1')]),
+            ('IfGreater', [I(2), A('OBJECTXPOS'), I(33554432)]), ('Sub', [A('OBJECTXPOS'), I(33554432)]), ('endif', []),
+            ('Equal', [V('TEMPVALUE2'), A('OBJECTXPOS')]), ('ShR', [V('TEMPVALUE2'), I(16)]), ('Inc', [V('ARRAYPOS0')]),
+            ('DrawSpriteScreenXY', [V('TEMPVALUE0'), V('TEMPVALUE2'), I(0)]), ('Inc', [V('TEMPVALUE0')]),
+            ('DrawSpriteScreenXY', [V('TEMPVALUE0'), V('TEMPVALUE2'), I(0)]), ('Inc', [V('TEMPVALUE0')]),
+            ('Add', [V('TEMPVALUE1'), I(8192)]), ('loop', [])]
+
+
+def patch_title_water(data):
+    names, vars_ = bs.tables()
+    nm = [n for n, _ in names]
+    op, wlower = nm.index('PS1TitleWater'), nm.index('WLower')
+    path = os.path.join(data, 'Scripts', 'ByteCode', 'PS000.bin')  # presentation stage 0 = the Title
+    raw = open(path, 'rb').read()
+    code, p = bs.blocks(raw, 0)
+    tmpl = title_water()
+    hits = []
+    for at in range(len(code)):
+        if code[at] not in (wlower, op):
+            continue
+        try:
+            ins = instructions(code, at, names, vars_)[:len(tmpl)]
+        except (IndexError, KeyError):
+            continue
+        ins = [(a, 'WLower' if (a == at and n == 'PS1TitleWater') else n, o) for a, n, o in ins]
+        if matches(ins, tmpl):
+            hits.append(at)
+    if len(hits) != 1:
+        sys.exit('ERROR patch_bytecode: PS000 Title water loop: %d matches' % len(hits))
+    at = hits[0]
+    if code[at] == op:
+        return 'Title water loop native in - (already: PS000.bin@%d)' % at
+    code[at] = op
+    open(path, 'wb').write(encode(code) + raw[p:])
+    assert bs.blocks(open(path, 'rb').read(), 0)[0] == code
+    return 'Title water loop native in PS000.bin@%d' % at
+
+
 def main():
     data = sys.argv[1]
     print('PS001.bin: ' + patch_options(data))
@@ -518,6 +620,8 @@ def main():
     print('RS*.bin: ' + patch_parallax_ramp(data))
     print('PS*.bin: ' + patch_text_loops(data))
     print('SS*.bin: ' + patch_ufo_view(data))
+    print('GS000.bin: ' + patch_save_objects(data))
+    print('PS000.bin: ' + patch_title_water(data))
 
 
 if __name__ == '__main__':

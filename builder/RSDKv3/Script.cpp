@@ -507,6 +507,7 @@ const FunctionInfo functions[] = {
     FunctionInfo("PS1UfoView", 2),
     FunctionInfo("PS1SaveObjects", 3),
     FunctionInfo("PS1TitleWater", 3),
+    FunctionInfo("PS1AirBubble", 3),
 #endif
 };
 
@@ -942,6 +943,7 @@ enum ScrFunction {
     FUNC_PS1UFOVIEW,
     FUNC_PS1SAVEOBJECTS,
     FUNC_PS1TITLEWATER,
+    FUNC_PS1AIRBUBBLE,
 #endif
     FUNC_MAX_CNT
 };
@@ -4639,6 +4641,92 @@ void ProcessScript(int scriptCodeStart, int jumpTableStart, byte scriptSub)
                 }
                 scriptEng.operands[1] = ap[0]; // the exit test's operand registers (WLower 0, pos0, end)
                 scriptCodePtr = scriptCodeStart + jumpTable[jumpTableStart + scriptEng.operands[0] + 1];
+                break;
+            }
+            case FUNC_PS1AIRBUBBLE: {
+                // Tidal Tempest's AirBubble main sub: 30-40 VM instructions per bubble a frame (~17 hblanks in R41A,
+                // docs/28 speed pass 2). tools/scripts/patch_bytecode.py checks the whole sub (55 instructions, 279
+                // words, the globals 79 / 104 / 80 / 69) and swaps only its first opcode (IfEqual 0, OBJECTSTATE, 0) for
+                // this one. The same sub natively (32-bit wrapping and byte fields as the VM's), down to the jump stack
+                // slots its ifs push and the operand registers left by its last instruction, then its End.
+                opcodeSize    = 0;
+                int B         = scriptCodePtr - 8; // this instruction (IfEqual's layout: 1 + 2 + 3 + 2 words)
+                Entity *e     = &objectEntityList[objectLoop];
+                Entity *pl    = playerList[activePlayer].boundEntity;
+                int *js       = &jumpTableStack[jumpTableStackPos];
+                int *v        = e->values;
+                js[1]         = 0;
+                if (e->state == 0) {
+                    ++v[0];
+                    js[2] = 2;
+                    if (v[0] > 15) {
+                        v[0]  = 0;
+                        js[3] = 4;
+                        if (e->frame == 6)
+                            e->type = 0;
+                        js[3] = 6;
+                        if (e->frame < e->propertyValue)
+                            ++e->frame;
+                    }
+                    e->YPos = (int)((uint)e->YPos + (uint)v[3]);
+                    js[2]   = 8;
+                    if (pl->animation == globalVariables[79]) {
+                        js[3] = 10;
+                        if (e->propertyValue < 3)
+                            v[2] = (int)((uint)v[2] + 262144u);
+                    }
+                    js[2] = 12;
+                    if (pl->animation == globalVariables[104]) {
+                        js[3] = 14;
+                        if (e->propertyValue < 3)
+                            v[2] = (int)((uint)v[2] + 262144u);
+                    }
+                    js[2] = 16;
+                    if (e->frame < 6) {
+                        e->XPos = (int)((uint)Sin512(v[1]) << 9);
+                        e->XPos = (int)((uint)e->XPos + (uint)v[2]);
+                        v[1]    = (int)((uint)v[1] + 4u) & 511;
+                    }
+                    js[2] = 18;
+                    if ((e->YPos >> 16) < waterLevel) {
+                        js[3] = 20;
+                        if (e->propertyValue == 5) {
+                            e->frame = 6, e->propertyValue = 6, v[0] = 0, v[3] = 0;
+                        }
+                        else {
+                            js[4] = 22;
+                            if (e->propertyValue < 5)
+                                e->type = 0;
+                        }
+                    }
+                }
+                else {
+                    js[2] = 24;
+                    if (v[0] < 20) {
+                        ++v[0];
+                        pl->animation = (byte)globalVariables[80];
+                    }
+                    else {
+                        e->type            = 0;
+                        pl->animation      = (byte)globalVariables[69];
+                        pl->animationSpeed = 20;
+                    }
+                }
+                js[1]   = 26;
+                int oob = 0, px = e->XPos >> 16; // VAR_OBJECTOUTOFBOUNDS
+                if (px <= xScrollOffset - OBJECT_BORDER_X1 || px >= OBJECT_BORDER_X2 + xScrollOffset) {
+                    oob = 1;
+                }
+                else {
+                    int py = e->YPos >> 16;
+                    oob    = py <= yScrollOffset - OBJECT_BORDER_Y1 || py >= yScrollOffset + OBJECT_BORDER_Y2;
+                }
+                scriptEng.operands[0] = 26, scriptEng.operands[1] = oob, scriptEng.operands[2] = 1; // IfEqual 26, OOB, 1
+                if (oob == 1) {
+                    e->type               = 0;
+                    scriptEng.operands[0] = 0, scriptEng.operands[1] = 0; // Equal OBJECTTYPE, 0
+                }
+                scriptCodePtr = B + 278; // its End
                 break;
             }
             case FUNC_PS1UFOVIEW: {

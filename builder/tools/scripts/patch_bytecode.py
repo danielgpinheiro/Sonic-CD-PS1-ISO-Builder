@@ -612,6 +612,72 @@ def patch_title_water(data):
     return 'Title water loop native in PS000.bin@%d' % at
 
 
+# Tidal Tempest's AirBubble main sub (R4x stages; docs/28 speed pass 2: 30-40 VM instructions per bubble a frame,
+# ~17 hblanks in R41A). Only the first IfEqual opcode becomes PS1AirBubble (RSDKv3/Script.cpp: the same sub natively,
+# down to the jump stack slots and the operand registers it leaves); the whole sub is checked here, including the
+# global variables it compares the player's animation with and sets it to (79, 104, 80, 69).
+def air_bubble():
+    I = lambda v: ('int', v)
+    G = lambda i: ('var', ('GLOBAL', 1, (0, i)))
+    O = lambda n: V('OBJECT' + n)
+    return [('IfEqual', [I(0), O('STATE'), I(0)]), ('Inc', [O('VALUE0')]),
+            ('IfGreater', [I(2), O('VALUE0'), I(15)]), ('Equal', [O('VALUE0'), I(0)]),
+            ('IfEqual', [I(4), O('FRAME'), I(6)]), ('Equal', [O('TYPE'), I(0)]), ('endif', []),
+            ('IfLower', [I(6), O('FRAME'), O('PROPERTYVALUE')]), ('Inc', [O('FRAME')]), ('endif', []), ('endif', []),
+            ('Add', [O('YPOS'), O('VALUE3')]),
+            ('IfEqual', [I(8), V('PLAYERANIMATION'), G(79)]),
+            ('IfLower', [I(10), O('PROPERTYVALUE'), I(3)]), ('Add', [O('VALUE2'), I(262144)]), ('endif', []), ('endif', []),
+            ('IfEqual', [I(12), V('PLAYERANIMATION'), G(104)]),
+            ('IfLower', [I(14), O('PROPERTYVALUE'), I(3)]), ('Add', [O('VALUE2'), I(262144)]), ('endif', []), ('endif', []),
+            ('IfLower', [I(16), O('FRAME'), I(6)]), ('Sin', [O('XPOS'), O('VALUE1')]), ('ShL', [O('XPOS'), I(9)]),
+            ('Add', [O('XPOS'), O('VALUE2')]), ('Add', [O('VALUE1'), I(4)]), ('And', [O('VALUE1'), I(511)]), ('endif', []),
+            ('IfLower', [I(18), O('IYPOS'), V('STAGEWATERLEVEL')]),
+            ('IfEqual', [I(20), O('PROPERTYVALUE'), I(5)]), ('Equal', [O('FRAME'), I(6)]), ('Equal', [O('PROPERTYVALUE'), I(6)]),
+            ('Equal', [O('VALUE0'), I(0)]), ('Equal', [O('VALUE3'), I(0)]), ('else', []),
+            ('IfLower', [I(22), O('PROPERTYVALUE'), I(5)]), ('Equal', [O('TYPE'), I(0)]), ('endif', []),
+            ('endif', []), ('endif', []), ('else', []),
+            ('IfLower', [I(24), O('VALUE0'), I(20)]), ('Inc', [O('VALUE0')]), ('Equal', [V('PLAYERANIMATION'), G(80)]),
+            ('else', []), ('Equal', [O('TYPE'), I(0)]), ('Equal', [V('PLAYERANIMATION'), G(69)]),
+            ('Equal', [V('PLAYERANIMATIONSPEED'), I(20)]), ('endif', []), ('endif', []),
+            ('IfEqual', [I(26), O('OUTOFBOUNDS'), I(1)]), ('Equal', [O('TYPE'), I(0)]), ('endif', []), ('End', [])]
+
+
+def patch_air_bubble(data):
+    names, vars_ = bs.tables()
+    nm = [n for n, _ in names]
+    op, ifequal = nm.index('PS1AirBubble'), nm.index('IfEqual')
+    bc = os.path.join(data, 'Scripts', 'ByteCode')
+    tmpl = air_bubble()
+    done, already = [], []
+    for fn in sorted(os.listdir(bc)):
+        if not fn.startswith('RS'):
+            continue
+        path = os.path.join(bc, fn)
+        raw = open(path, 'rb').read()
+        code, p = bs.blocks(raw, 0)
+        new = []
+        for at in range(len(code)):
+            if code[at] not in (ifequal, op):
+                continue
+            try:
+                ins = instructions(code, at, names, vars_)
+            except (IndexError, KeyError):
+                continue
+            ins = [(a, 'IfEqual' if (a == at and n == 'PS1AirBubble') else n, o) for a, n, o in ins]
+            if not matches(ins, tmpl):
+                continue
+            if ins[1][0] - at != 8 or ins[-1][0] - at != 278:
+                sys.exit('ERROR patch_bytecode: %s @%d AirBubble main with unexpected lengths' % (fn, at))
+            (already if code[at] == op else new).append(at if code[at] != op else '%s@%d' % (fn, at))
+        if new:
+            for at in new:
+                code[at] = op
+            open(path, 'wb').write(encode(code) + raw[p:])
+            assert bs.blocks(open(path, 'rb').read(), 0)[0] == code
+            done += ['%s@%d' % (fn, at) for at in new]
+    return 'AirBubble main native in %s%s' % (', '.join(done) or '-', ' (already: %s)' % ' '.join(already) if already else '')
+
+
 def main():
     data = sys.argv[1]
     print('PS001.bin: ' + patch_options(data))
@@ -622,6 +688,7 @@ def main():
     print('SS*.bin: ' + patch_ufo_view(data))
     print('GS000.bin: ' + patch_save_objects(data))
     print('PS000.bin: ' + patch_title_water(data))
+    print('RS*.bin: ' + patch_air_bubble(data))
 
 
 if __name__ == '__main__':

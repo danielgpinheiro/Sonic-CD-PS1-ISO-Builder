@@ -50,11 +50,15 @@ static bool loadGameConfig() {
     for (int i = 0; i < n; ++i) globalNames[i] = readStr();
     for (int i = 0; i < n; ++i) readStr(); // script paths (bytecode used instead)
     FileRead(&n, 1);
+    globalVariablesCount = n;
     for (int i = 0; i < n; ++i) {
-        readStr();
+        StrCopy(globalVariableNames[i], readStr().c_str()); // names only: the values stay 0, as before
         byte v[4];
         FileRead(v, 4);
     }
+    // As RetroEngine's LoadGameConfig on PS1: Tails playable from the start, so the Menu's startup records the
+    // unlocked frames (its PLAYER SELECT picture of Tails).
+    SetGlobalVariableByName("Options.TailsUnlocked", 1);
     FileRead(&n, 1);
     for (int i = 0; i < n; ++i) readStr(); // sfx
     FileRead(&n, 1);

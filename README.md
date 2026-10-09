@@ -27,7 +27,10 @@ uses directly:
 - **Disc layout** → files placed in the order the game loads them, a file index so opening a file needs no
   directory reads, source files left off.
 
-## Latest update: smoother and faster (October 2026)
+## Latest update: Tails from the start, smoother and faster (October 2026)
+
+- **Tails is playable from the start.** When you start a new game, the *Player Select* screen lets you pick
+  Sonic or Tails right away; you no longer have to finish the game first.
 
 The game now runs at or very close to full speed almost everywhere (measured in emulators):
 
@@ -35,9 +38,11 @@ The game now runs at or very close to full speed almost everywhere (measured in 
 - **The ending credits run at full speed.** They used to crawl along at about a fifth of the normal speed.
 - **The short freeze when you travel in time is much shorter** (less than half as long as before).
 - **Almost every zone now holds 60 fps.** Collision Chaos, Stardust Speedway and the others no longer slow down, and
-  the busy parts of Palmtree Panic, which used to slow down a lot, are now close to full speed.
+  Palmtree Panic, whose busy parts used to slow down a lot, now runs at full speed all the way.
+- **Tidal Tempest is much smoother.** Its first act, the heaviest part of the game (the layered underwater
+  background and the air bubbles), went from about two thirds of full speed to about 90 %.
 - **The title screen, the menus, Time Attack and the D.A. Garden run at full speed too.**
-- **Nothing looks or plays any differently**: the game was only made faster, and every change was checked against the
+- **Nothing else looks or plays any differently**: apart from Tails, the game was only made faster, and every change was checked against the
   previous version, picture by picture and frame by frame.
 
 Just rebuild your disc image with this version of the builder (same steps as before) to get the update.
@@ -64,14 +69,14 @@ Just rebuild your disc image with this version of the builder (same steps as bef
 
 ## Output
 
-- `output/SonicCD-PS1-EN.cue` + `output/SonicCD-PS1-EN.bin` (or `-JP`): a Mode 2 BIN/CUE image (547 MB).
+- `output/SonicCD-PS1-EN.cue` + `output/SonicCD-PS1-EN.bin` (or `-JP`): a Mode 2 BIN/CUE image (551 MB).
   It has to be BIN/CUE, not `.iso`: CD-XA music and video use 2336-byte Mode 2 sectors, which a
   2048-byte ISO image can't hold.
 - `output/SHA256SUMS-EN` (or `-JP`).
 
 Built from the Steam files **without** a license file and with the tool versions listed under
 [Requirements](#requirements), the English image is
-`SonicCD-PS1-EN.bin` SHA-256 `dd53b680c825a6622a97dd2a27e91344a50e2ace37a3f0ef59efb246d9252d81`.
+`SonicCD-PS1-EN.bin` SHA-256 `3bba59001e6ec7edfdce63cb223e8df5c2cd596a79990700082b10e0a2f75de2`.
 Other versions of FFmpeg or psxavenc may encode the music and videos slightly differently, which changes
 the hash but not the game. With a license file the license sectors differ, so the hash does too.
 
@@ -82,7 +87,7 @@ the license sectors, the file index, and every file against its source.
 
 - The whole game: all zones in every time period, time travel, the special stages, bosses, Secrets,
   Time Attack, the opening and ending videos, the credits.
-- Sonic and Tails (as in the 2011 version, after finishing the game).
+- Sonic and Tails, both playable from the start (in the 2011 version Tails is unlocked by finishing the game).
 - **Both soundtracks** (US and JP), switchable in the menu, also in the videos.
 - English or Japanese (one disc each).
 - Saving on the **memory card in slot 1** (one block, with a Sonic CD icon): save slots, Time Attack
@@ -96,9 +101,8 @@ the license sectors, the file index, and every file against its source.
 - No online features: leaderboards and achievements are hidden.
 - Help & Options has no *How to play* or *Controls* entries (on PC they open Windows dialogs).
 - No dev menu, settings file or mods from the PC version.
-- A few busy moments still slow down: Tidal Tempest's first act in places (its background has more moving layers
-  than the PS1's video memory can hold ready-made), and Palmtree Panic's first act a little. The PS1 draws every frame
-  instead of skipping some.
+- A few busy moments still slow down a little, mostly in Tidal Tempest's first act (about 90 % of full speed there).
+  The PS1 draws every frame instead of skipping some.
 - Tested in emulators only (PCSX-Redux, including boot through a retail NTSC-U BIOS); not yet on a real
   console.
 

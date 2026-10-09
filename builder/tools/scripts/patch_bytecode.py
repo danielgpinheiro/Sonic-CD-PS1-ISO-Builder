@@ -15,7 +15,8 @@ PS1 the button opens `Options Menu`, without INSTRUCTIONS:
   - draw: the 4th entry slot is moved off screen (its `Add OBJECTYPOS, 40` -> -1000).
 Special stages (docs/28 special-stage speed): Special Setup's draw sub, a bubble sort of draw list 3 in
 script, becomes one PS1SortDrawList instruction (a PS1 engine opcode running the same loop natively); SS5's
-BGEffects deformation ramp loop becomes PS1DeformRamp.
+BGEffects deformation ramp loop becomes PS1DeformRamp; R11A's 3DRamp parallax ramp loop becomes PS1ParallaxRamp (only
+its WLower opcode changes: speed pass 2).
 Every edit is found by its instruction pattern and checked (count and operands); anything unexpected
 stops the build. Already patched files are recognised and left alone.
 
@@ -286,11 +287,237 @@ def patch_ss_ramp(data):
     return 'deformation ramp native in %s%s' % (', '.join(done) or '-', ' (already: %s)' % ' '.join(already) if already else '')
 
 
+# R11A's 3DRamp: a per-line parallax ramp loop run every frame (docs/28 speed pass 2, ~119 hblanks):
+#   WLower j, ARRAYPOS0, end / Equal T1, T0 / Mul T1, T2 / ShR T1, k / Add HPARALLAXSCROLLPOS[pos0], T1 / Inc ARRAYPOS0
+#   / Dec T2 / loop  ->  only the WLower opcode becomes PS1ParallaxRamp (RSDKv3/Script.cpp: the same loop natively; same
+# operands, the body left in place, so every instruction keeps its position). Found by its full instruction pattern
+# anywhere in a stage file's code.
+PRAMP = [
+    ('WLower', [('int', None), ('var', ('ARRAYPOS0', 0)), ('int', None)]),
+    ('Equal', [('var', ('TEMPVALUE1', 0)), ('var', ('TEMPVALUE0', 0))]),
+    ('Mul', [('var', ('TEMPVALUE1', 0)), ('var', ('TEMPVALUE2', 0))]),
+    ('ShR', [('var', ('TEMPVALUE1', 0)), ('int', None)]),
+    ('Add', [('var', ('HPARALLAXSCROLLPOS', 1, (1, 0))), ('var', ('TEMPVALUE1', 0))]),
+    ('Inc', [('var', ('ARRAYPOS0', 0))]),
+    ('Dec', [('var', ('TEMPVALUE2', 0))]),
+    ('loop', []),
+]
+
+
+def patch_parallax_ramp(data):
+    names, vars_ = bs.tables()
+    nm = [n for n, _ in names]
+    op, wlower = nm.index('PS1ParallaxRamp'), nm.index('WLower')
+    bc = os.path.join(data, 'Scripts', 'ByteCode')
+    done, already = [], []
+    for fn in sorted(os.listdir(bc)):
+        if not fn.startswith('RS'):
+            continue
+        path = os.path.join(bc, fn)
+        raw = open(path, 'rb').read()
+        code, p = bs.blocks(raw, 0)
+        rest = raw[p:]
+        hits = []
+        for at in range(len(code)):
+            if code[at] not in (wlower, op):
+                continue
+            try:
+                ins = instructions(code, at, names, vars_)[:len(PRAMP)]
+            except (IndexError, KeyError):
+                continue
+            got = [('WLower' if n == 'PS1ParallaxRamp' else n, [(o[0], o[1] if o[0] == 'var' else None) for o in ops]) for _, n, ops in ins]
+            if got != PRAMP:
+                continue
+            # the body's lengths the engine relies on: Equal at +8, Mul at +15, ShR's constant at +8 + 7 + 7 + 5
+            if [a - at for a, _, _ in ins[1:4]] != [8, 15, 22] or ins[3][2][1][2] != at + 27:
+                sys.exit('ERROR patch_bytecode: %s @%d parallax ramp with unexpected operand forms' % (fn, at))
+            hits.append((at, ins[0][1] == 'PS1ParallaxRamp', ins[0][2][2][1], ins[3][2][1][1]))
+        for at, was, end, k in hits:
+            if was:
+                already.append('%s@%d' % (fn, at))
+                continue
+            code[at] = op
+            done.append('%s@%d (to %d, >> %d)' % (fn, at, end, k))
+        if any(not w for _, w, _, _ in hits):
+            open(path, 'wb').write(encode(code) + rest)
+            assert bs.blocks(open(path, 'rb').read(), 0)[0] == code
+    return 'parallax ramp native in %s%s' % (', '.join(done) or '-', ' (already: %s)' % ' '.join(already) if already else '')
+
+
+# The Credits' TextFont1-3 draw subs: a character-by-character text loop (docs/28 speed pass 2, ~800 hblanks a frame).
+# Only the loop's WGreater opcode becomes PS1TextLoop (RSDKv3/Script.cpp runs the loop natively); the whole shape is
+# checked here: the instructions below, the switch's jump table (default right after the switch, exit after
+# endswitch, every case target either the default or a 'DrawSpriteXY k, TEMPVALUE2, OBJECTYPOS / break' body) and the
+# loop's exit after its 'loop'.
+V = lambda n: ('var', (n, 0))
+TEXT_HEAD = [
+    ('WGreater', [('int', None), V('TEMPVALUE1'), ('int', 0)]),
+    ('GetTextInfo', [V('TEMPVALUE0'), ('int', 0), ('int', 0), V('OBJECTVALUE1'), V('ARRAYPOS0')]),
+    ('switch', [('int', None), V('TEMPVALUE0')]),
+    ('Equal', [V('OBJECTFRAME'), ('int', 0)]),
+    ('IfGreater', [('int', None), V('TEMPVALUE0'), ('int', 64)]),
+    ('IfLower', [('int', None), V('TEMPVALUE0'), ('int', 91)]),
+    ('Equal', [V('OBJECTFRAME'), V('TEMPVALUE0')]),
+    ('Sub', [V('OBJECTFRAME'), ('int', 64)]),
+    ('endif', []), ('endif', []),
+    ('IfGreater', [('int', None), V('TEMPVALUE0'), ('int', 96)]),
+    ('IfLower', [('int', None), V('TEMPVALUE0'), ('int', 123)]),
+    ('Equal', [V('OBJECTFRAME'), V('TEMPVALUE0')]),
+    ('Sub', [V('OBJECTFRAME'), ('int', 96)]),
+    ('endif', []), ('endif', []),
+    ('IfGreater', [('int', None), V('OBJECTFRAME'), ('int', 0)]),
+    ('DrawSpriteXY', [V('OBJECTFRAME'), V('TEMPVALUE2'), V('OBJECTYPOS')]),
+    ('endif', []),
+    ('break', []),
+]
+TEXT_CASE = [('DrawSpriteXY', [('int', None), V('TEMPVALUE2'), V('OBJECTYPOS')]), ('break', [])]
+TEXT_TAIL = [('endswitch', []), ('Inc', [V('ARRAYPOS0')]), ('Dec', [V('TEMPVALUE1')]), ('Add', [V('TEMPVALUE2'), ('int', 524288)]),
+             ('loop', [])]
+
+
+def matches(ins, template):
+    """ins (instructions()) against a template: names and operand kinds equal, values equal unless the template's is None."""
+    if len(ins) != len(template):
+        return False
+    for (_, n, ops), (tn, tops) in zip(ins, template):
+        if n != tn or len(ops) != len(tops):
+            return False
+        for o, (tk, tv) in zip(ops, tops):
+            if o[0] != tk or (tv is not None and o[1] != tv):
+                return False
+    return True
+
+
+def patch_text_loops(data):
+    names, vars_ = bs.tables()
+    nm = [n for n, _ in names]
+    op, wgreater = nm.index('PS1TextLoop'), nm.index('WGreater')
+    bc = os.path.join(data, 'Scripts', 'ByteCode')
+    graw = open(os.path.join(bc, 'GS000.bin'), 'rb').read()
+    gcode, gp = bs.blocks(graw, 0)
+    gjt, _ = bs.blocks(graw, gp)
+    done, already = [], []
+    for fn in sorted(os.listdir(bc)):
+        if not fn.startswith('PS'):
+            continue
+        path = os.path.join(bc, fn)
+        raw = open(path, 'rb').read()
+        fcode, p = bs.blocks(raw, 0)
+        fjt, _ = bs.blocks(raw, p)
+        code, jtab = list(gcode) + list(fcode), list(gjt) + list(fjt)  # sub / jump pointers count from GS000's start
+        subs = [(c, j) for cs, js in zip(bs.subs(path), bd.jump_tables(path)[1]) for c, j in zip(cs, js) if 0 <= c < len(code)]
+        hits = []
+        for at in range(len(gcode), len(code)):
+            if code[at] not in (wgreater, op):
+                continue
+            try:
+                head = instructions(code, at, names, vars_)[:len(TEXT_HEAD)]
+            except (IndexError, KeyError):
+                continue
+            if not matches([(a, 'WGreater' if n == 'PS1TextLoop' else n, o) for a, n, o in head], TEXT_HEAD):
+                continue
+            start, jstart = max((c, j) for c, j in subs if c <= at)  # the sub holding the loop
+            jw, sw = head[0][2][0][1], head[2][2][0][1]
+            lo, hi, dflt, end = jtab[jstart + sw:jstart + sw + 4]
+            err = lambda m: sys.exit('ERROR patch_bytecode: %s @%d text loop: %s' % (fn, at, m))
+            if start + dflt != head[3][0]:
+                err('switch default is not after the switch')
+            pos = head[-1][0] + 1
+            cases = set()
+            while code[pos] == nm.index('DrawSpriteXY'):
+                c = instructions(code, pos, names, vars_)[:2]
+                if not matches(c, TEXT_CASE):
+                    err('case body at %d' % pos)
+                cases.add(pos - start)
+                pos = c[1][0] + 1
+            tail = instructions(code, pos, names, vars_)[:len(TEXT_TAIL)]
+            if not matches(tail, TEXT_TAIL):
+                err('loop tail')
+            if start + end != tail[1][0] or start + jtab[jstart + jw + 1] != tail[-1][0] + 1 or start + jtab[jstart + jw] != at:
+                err('switch exit / loop jump entries')
+            for k in range(hi - lo + 1):
+                tgt = jtab[jstart + sw + 4 + k]
+                if tgt != dflt and tgt not in cases:
+                    err('case %d target %d' % (lo + k, tgt))
+            # the default body's if offsets the engine reads (dc[8], dc[16], dc[39], dc[47], dc[70]) are the ifs' entries
+            d0 = head[3][0]
+            if [head[i][0] - d0 for i in (4, 5, 10, 11, 16)] != [6, 14, 37, 45, 68] or head[2][0] != at + 22:
+                err('instruction offsets')
+            hits.append((at, head[0][1] == 'PS1TextLoop'))
+        new = [a for a, w in hits if not w]
+        already += ['%s@%d' % (fn, a - len(gcode)) for a, w in hits if w]
+        if new:
+            for a in new:
+                code[a] = op
+            fcode2 = code[len(gcode):]
+            open(path, 'wb').write(encode(fcode2) + raw[p:])
+            assert bs.blocks(open(path, 'rb').read(), 0)[0] == fcode2
+            done += ['%s@%d' % (fn, a - len(gcode)) for a in new]
+    return 'text loops native in %s%s' % (', '.join(done) or '-', ' (already: %s)' % ' '.join(already) if already else '')
+
+
+# The special stages' UFO-type objects: the floor-camera transform block in their main subs (docs/28 speed pass 2): only
+# its first opcode (Equal TEMPVALUE0, OBJECTXPOS) becomes PS1UfoView (RSDKv3/Script.cpp runs the 20 instructions
+# natively and continues after their 148 words). k: the object values receiving the result (k, k + 1).
+def ufo_view(k):
+    L = lambda n: ('var', (n, 1, (0, 0)))
+    T = lambda i: V('TEMPVALUE%d' % i)
+    O = lambda i: V('OBJECTVALUE%d' % i)
+    return [('Equal', [T(0), V('OBJECTXPOS')]), ('Sub', [T(0), L('TILELAYERXPOS')]), ('ShR', [T(0), ('int', 8)]),
+            ('Equal', [T(1), V('OBJECTYPOS')]), ('Sub', [T(1), L('TILELAYERZPOS')]), ('ShR', [T(1), ('int', 8)]),
+            ('Sin', [T(2), L('TILELAYERANGLE')]), ('Mul', [T(2), T(1)]), ('Cos', [T(3), L('TILELAYERANGLE')]), ('Mul', [T(3), T(0)]),
+            ('Equal', [O(k), T(2)]), ('Sub', [O(k), T(3)]), ('ShR', [O(k), ('int', 9)]),
+            ('Cos', [T(2), L('TILELAYERANGLE')]), ('Mul', [T(2), T(1)]), ('Sin', [T(3), L('TILELAYERANGLE')]), ('Mul', [T(3), T(0)]),
+            ('Equal', [O(k + 1), T(2)]), ('Add', [O(k + 1), T(3)]), ('ShR', [O(k + 1), ('int', 9)])]
+
+
+def patch_ufo_view(data):
+    names, vars_ = bs.tables()
+    nm = [n for n, _ in names]
+    op, equal = nm.index('PS1UfoView'), nm.index('Equal')
+    bc = os.path.join(data, 'Scripts', 'ByteCode')
+    done, already = [], []
+    for fn in sorted(os.listdir(bc)):
+        if not fn.startswith('SS'):
+            continue
+        path = os.path.join(bc, fn)
+        raw = open(path, 'rb').read()
+        code, p = bs.blocks(raw, 0)
+        new = []
+        for at in range(len(code)):
+            if code[at] not in (equal, op):
+                continue
+            try:
+                ins = instructions(code, at, names, vars_)[:20]
+            except (IndexError, KeyError):
+                continue
+            ins = [(a, 'Equal' if (a == at and n == 'PS1UfoView') else n, o) for a, n, o in ins]
+            k = next((kk for kk in range(7) if matches(ins, ufo_view(kk))), None)
+            if k is None:
+                continue
+            if ins[10][0] - at != 76 or ins[-1][0] + 6 - at != 148:
+                sys.exit('ERROR patch_bytecode: %s @%d UFO view block with unexpected lengths' % (fn, at))
+            if code[at] == op:
+                already.append('%s@%d' % (fn, at))
+            else:
+                new.append((at, k))
+        if new:
+            for at, _ in new:
+                code[at] = op
+            open(path, 'wb').write(encode(code) + raw[p:])
+            assert bs.blocks(open(path, 'rb').read(), 0)[0] == code
+            done += ['%s@%d (values %d-%d)' % (fn, at, k, k + 1) for at, k in new]
+    return 'UFO view blocks native in %s%s' % (', '.join(done) or '-', ' (already: %s)' % ' '.join(already) if already else '')
+
+
 def main():
     data = sys.argv[1]
     print('PS001.bin: ' + patch_options(data))
     print('SS*.bin: ' + patch_ss_sort(data))
     print('SS*.bin: ' + patch_ss_ramp(data))
+    print('RS*.bin: ' + patch_parallax_ramp(data))
+    print('PS*.bin: ' + patch_text_loops(data))
+    print('SS*.bin: ' + patch_ufo_view(data))
 
 
 if __name__ == '__main__':

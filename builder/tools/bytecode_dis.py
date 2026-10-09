@@ -48,6 +48,11 @@ def dis(code, start, names, vars_, limit=100000, jt=None, jstart=0):
         for _ in range(size):
             t = code[p]
             p += 1
+            if t < 0:  # a PS1 direct operand rewritten at load (RSDKv3/Script.cpp PS1DirectOperand; dumped RAM code)
+                kind, ln = t & 7, (t >> 4) & 7
+                ops.append(str(code[p]) if kind == 4 else '%s:%s' % (('abs', 'absB', 'ent', 'entB')[kind], hex(code[p] & 0xFFFFFFFF) if kind < 2 else code[p]))
+                p += ln - 1
+                continue
             if t == 1:
                 arr = code[p]
                 p += 1

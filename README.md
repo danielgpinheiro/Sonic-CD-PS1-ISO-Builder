@@ -27,6 +27,20 @@ uses directly:
 - **Disc layout** → files placed in the order the game loads them, a file index so opening a file needs no
   directory reads, source files left off.
 
+## Latest update: smoother and faster (October 2026)
+
+The game now runs much closer to full speed (measured in emulators):
+
+- **All special stages run at full speed (60 fps).** Before, they ran at roughly 75–95 % speed.
+- **The ending credits run at full speed.** They used to crawl along at about a fifth of the normal speed.
+- **Most zones now hold 60 fps.** Collision Chaos and Stardust Speedway no longer slow down, and the busy parts of
+  Palmtree Panic, which used to slow down a lot, are now close to full speed. The title screen, the menus, Time
+  Attack and the D.A. Garden are faster too.
+- **Nothing looks or plays any differently**: the game was only made faster, and every change was checked against the
+  previous version, picture by picture.
+
+Just rebuild your disc image with this version of the builder (same steps as before) to get the update.
+
 ## Usage
 
 1. Find your Sonic CD installation. On Steam: *Library → Sonic CD → Manage → Browse local files*.
@@ -56,7 +70,7 @@ uses directly:
 
 Built from the Steam files **without** a license file and with the tool versions listed under
 [Requirements](#requirements), the English image is
-`SonicCD-PS1-EN.bin` SHA-256 `4ad7eaaf15b12c17de62042c69e4adb307837617a41712dfa15f1548f5a91214`.
+`SonicCD-PS1-EN.bin` SHA-256 `e8522a770a8deba554a06e48ea17ef0ec92ca71169e61bf694464f186968c5e0`.
 Other versions of FFmpeg or psxavenc may encode the music and videos slightly differently, which changes
 the hash but not the game. With a license file the license sectors differ, so the hash does too.
 
@@ -81,8 +95,8 @@ the license sectors, the file index, and every file against its source.
 - No online features: leaderboards and achievements are hidden.
 - Help & Options has no *How to play* or *Controls* entries (on PC they open Windows dialogs).
 - No dev menu, settings file or mods from the PC version.
-- The special stages, the title screen and some busy scenes run below full speed in emulators
-  (70–85 % in the special stages): the PS1 draws every frame instead of skipping some.
+- A few busy moments still slow down: Tidal Tempest's first act in places, and the title screen a little. The PS1
+  draws every frame instead of skipping some.
 - Tested in emulators only (PCSX-Redux, including boot through a retail NTSC-U BIOS); not yet on a real
   console.
 

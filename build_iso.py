@@ -1,7 +1,7 @@
 #!/usr/bin/env python3
 """Sonic CD PS1 ISO Builder: your Sonic CD (2011) Data.rsdk + videos -> a PlayStation disc image.
 
-    python3 build_iso.py --data "/path/to/Sonic CD/Data.rsdk" [--lang en|jp] [--license licensea.dat] [--out output]
+    python3 build_iso.py --data "/path/to/Sonic CD/Data.rsdk" [--lang en|jp] [--jp-videos DIR] [--license licensea.dat] [--out output]
 
 1. checks the tools (Python packages, psxavenc, ffmpeg/ffprobe, mkpsxiso, a C++17 compiler, make);
 2. checks that Data.rsdk and the four videos are the Steam release (SHA-256), unless --force;
@@ -43,6 +43,9 @@ def main():
     ap = argparse.ArgumentParser(description='Build a Sonic CD PlayStation disc image from your own Data.rsdk and videos.')
     ap.add_argument('--data', required=True, help="Data.rsdk from your Sonic CD (2011) installation")
     ap.add_argument('--videos', help="the game's videos folder (Opening.ogv ...); default: videos/ next to Data.rsdk")
+    ap.add_argument('--jp-videos', help='optional: a folder with the videos whose first audio track is the Japanese '
+                                        'soundtrack with its vocal songs (e.g. a "videos JPN" folder); the JP soundtrack '
+                                        "option then plays that audio over Steam's picture (not hash-checked)")
     ap.add_argument('--lang', default='en', choices=('en', 'jp'), help='the disc language (default en)')
     ap.add_argument('--license', help='optional Sony license file (e.g. licensea.dat, NTSC-U) for retail consoles')
     ap.add_argument('--out', default=os.path.join(ROOT, 'output'), help='output folder (default: output/)')
@@ -72,6 +75,12 @@ def main():
                 wrong.append('%s (SHA-256 %s)' % (name, sha256(p)))
     else:
         print('WARNING: no videos folder at %s: the disc will have no videos (opening, endings, pencil test).' % videos)
+    jp = []
+    if a.jp_videos:
+        if not os.path.isdir(a.jp_videos):
+            sys.exit('--jp-videos folder not found: %s' % a.jp_videos)
+        jp = ['--jp-videos', os.path.abspath(a.jp_videos)]
+        print('JP soundtrack videos: %s (their first audio track replaces the JP soundtrack of the FMVs)' % a.jp_videos)
     if wrong:
         msg = 'These files are not the Steam release of Sonic CD:\n  ' + '\n  '.join(wrong)
         if not a.force:
@@ -89,7 +98,7 @@ def main():
     py = sys.executable
     t0 = time.time()
     subprocess.run([py, os.path.join(BUILDER, 'tools', 'build_assets.py'), '--rsdk', os.path.abspath(a.data), '--videos', videos,
-                    '--lang', a.lang, '--out', work, '--disc-tools'], env=env, check=True)
+                    '--lang', a.lang, '--out', work, '--disc-tools'] + jp, env=env, check=True)
     iso = os.path.join(work, 'build', 'iso')
     subprocess.run([py, os.path.join(BUILDER, 'tools', 'disc', 'gen_load_order.py'), os.path.join(iso, 'Data'), order],
                    env=env, check=True)

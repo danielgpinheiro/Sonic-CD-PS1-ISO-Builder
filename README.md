@@ -27,7 +27,17 @@ uses directly:
 - **Disc layout** → files placed in the order the game loads them, a file index so opening a file needs no
   directory reads, source files left off.
 
-## Latest update: Tails from the start, smoother and faster (October 2026)
+## Latest update: Time Attack and Visual Mode open, JP vocal videos (October 2026)
+
+- **Time Attack's seven rounds are open from the start**, and **Visual Mode** (Extras: watch the opening, the endings
+  and the pencil test) no longer needs a time attack record. D.A. Garden, Sound Test and Stage Select keep their
+  original conditions.
+- **Optional: the Japanese soundtrack's videos with their vocal songs.** If you have the videos with the Japanese vocal
+  audio (a folder like `videos JPN`, whose first audio track is the Japanese soundtrack), pass `--jp-videos folder`:
+  with the JP soundtrack selected, the opening and the endings play that audio over the Steam picture. Without the
+  option nothing changes.
+
+## Earlier update: Tails from the start, smoother and faster (October 2026)
 
 - **Tails is playable from the start.** When you start a new game, the *Player Select* screen lets you pick
   Sonic or Tails right away; you no longer have to finish the game first.
@@ -63,6 +73,8 @@ Just rebuild your disc image with this version of the builder (same steps as bef
      carries one language.
    - `--videos folder`: if the videos aren't in `videos/` next to `Data.rsdk`. Without videos the disc
      is built without them (a warning is shown).
+   - `--jp-videos folder` (optional): videos whose first audio track is the Japanese soundtrack with its vocal songs;
+     the JP soundtrack option then plays that audio over the Steam picture (not hash-checked).
    - `--license licensea.dat` (see [The license file](#the-license-file)), `--out folder`,
      `--keep-work`, `--force` (accept files that aren't the Steam release).
 4. The disc image is in `output/` after about 6 minutes on a recent Mac (most of it encoding the music and videos).
@@ -76,7 +88,7 @@ Just rebuild your disc image with this version of the builder (same steps as bef
 
 Built from the Steam files **without** a license file and with the tool versions listed under
 [Requirements](#requirements), the English image is
-`SonicCD-PS1-EN.bin` SHA-256 `3bba59001e6ec7edfdce63cb223e8df5c2cd596a79990700082b10e0a2f75de2`.
+`SonicCD-PS1-EN.bin` SHA-256 `11eafe6d46284d8b7e90d70a8cb130b2b71ad5fd89c5b386c41aebc52c583101`.
 Other versions of FFmpeg or psxavenc may encode the music and videos slightly differently, which changes
 the hash but not the game. With a license file the license sectors differ, so the hash does too.
 

@@ -77,6 +77,9 @@ def main():
     src.add_argument('--data', help='an already extracted Data/ directory')
     ap.add_argument('--out', default=REPO, help='output root (gets build/iso/Data and build/manifest)')
     ap.add_argument('--videos', help="Sonic CD's videos/*.ogv (default: videos/ next to Data.rsdk or Data/)")
+    ap.add_argument('--jp-videos', help='optional: the videos with the JP vocal soundtrack (first audio track; e.g. the '
+                                        '"videos JPN" folder): the JP soundtrack channel of each FMV from there, Steam\'s '
+                                        'picture and US channel kept (tools/fmv/build_str.py --jp)')
     ap.add_argument('--lang', default='en', choices=('en', 'jp'),
                     help="the disc's language (one disc per language, docs/28 phase 4)")
     ap.add_argument('--disc-tools', action='store_true', help='also require mkpsxiso (the disc step that follows)')
@@ -137,7 +140,8 @@ def main():
     print('[7 music] ' + ' '.join(l for l in r.stdout.splitlines() if l.startswith('Music.xa')))
     videos = a.videos or os.path.join(os.path.dirname(os.path.abspath(a.rsdk or a.data.rstrip('/'))), 'videos')
     if os.path.isdir(videos):
-        r = run('8 video', [PY, os.path.join(HERE, 'fmv', 'build_str.py'), videos, data], capture_output=True, text=True)
+        jp = ['--jp', os.path.abspath(a.jp_videos)] if a.jp_videos else []
+        r = run('8 video', [PY, os.path.join(HERE, 'fmv', 'build_str.py'), videos, data] + jp, capture_output=True, text=True)
         for l in r.stdout.splitlines():
             print('[8 video] ' + l)
     else:

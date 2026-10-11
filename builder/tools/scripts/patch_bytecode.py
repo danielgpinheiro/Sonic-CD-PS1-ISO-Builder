@@ -172,6 +172,57 @@ def patch_options(data):
     return 'HELP & OPTIONS -> %s (type %d, was %d): SETTINGS / STAFF CREDITS / ABOUT' % (objs[opts], type_opts, type_optsc)
 
 
+def rewrite(path, code, jt, tail):
+    open(path, 'wb').write(encode(code) + encode(jt) + tail)
+    back = open(path, 'rb').read()
+    c2, q = bs.blocks(back, 0)
+    j2, q2 = bs.blocks(back, q)
+    assert c2 == code and j2 == jt and back[q2:] == tail
+
+
+# Time Attack's rounds and Visual Mode open from the start (tester report 2026-10-10; user: "Only TA + Visual Mode").
+# - PS002 (TAttack), Menu Control's function 2: TEMPVALUE0 starts at -1, takes the furthest round of the save files'
+#   stages (saveRAM 3, 11, .. 35), is kept in saveRAM[39] and opens rounds 0..TEMPVALUE0-1 (OBJECTVALUE4 of the round
+#   buttons 32..38 = 0); starting it at 7 opens all seven.
+# - PS001 (Menu), Extras Menu's startup: Visual Mode (GLOBAL 5 + its label frames, two places) opens when the time
+#   attack total TEMPVALUE0 < 154612 (25'46"12, the original's condition); the threshold becomes 0x7FFFFFFF. D.A. Garden
+#   (< 224757, GLOBAL 4), Sound Test and Stage Select keep theirs.
+def patch_unlocks(data):
+    names, vars_ = bs.tables()
+    path = os.path.join(data, 'Scripts', 'ByteCode', 'PS002.bin')
+    raw = open(path, 'rb').read()
+    code, p = bs.blocks(raw, 0)
+    jt, p2 = bs.blocks(raw, p)
+    tail = raw[p2:]
+    fns = bd.functions(path)
+    ins = instructions(code, fns[2][0], names, vars_)
+    head = [(n, [o[1] for o in ops]) for _, n, ops in ins[:3]]
+    if head[0][0] != 'Equal' or head[0][1][0] != ('TEMPVALUE0', 0) or head[0][1][1] not in (-1, 7) \
+            or head[1] != ('Equal', [('ARRAYPOS0', 0), 3]) or head[2] != ('WLower', [0, ('ARRAYPOS0', 0), 40]):
+        sys.exit('ERROR patch_bytecode: PS002 function 2 is not the round unlock (%s)' % head)
+    ta = 'already patched' if head[0][1][1] == 7 else 'patched'
+    code[ins[0][2][1][2]] = 7
+    rewrite(path, code, jt, tail)
+
+    path = os.path.join(data, 'Scripts', 'ByteCode', 'PS001.bin')
+    raw = open(path, 'rb').read()
+    code, p = bs.blocks(raw, 0)
+    jt, p2 = bs.blocks(raw, p)
+    tail = raw[p2:]
+    extras, _ = object_index(data, 'Menu', 'Extras Menu')
+    start = instructions(code, bs.subs(path)[extras][3], names, vars_)
+    gates = [ops for _, n, ops in start if n == 'IfLower' and ops[1][1] == ('TEMPVALUE0', 0)
+             and ops[2][0] == 'int' and ops[2][1] in (154612, 0x7FFFFFFF)]
+    sets = [k for k, (_, n, ops) in enumerate(start) if n == 'Equal' and ops[0][1] == ('GLOBAL', 1, (0, 5))]
+    if len(gates) != 2 or len(sets) != 1 or start[sets[0] - 2][1] != 'IfLower' or start[sets[0] - 2][2] is not gates[0]:
+        sys.exit('ERROR patch_bytecode: Extras Menu startup: %d Visual Mode gates, %d GLOBAL 5 sets' % (len(gates), len(sets)))
+    vm = 'already patched' if gates[0][2][1] == 0x7FFFFFFF else 'patched'
+    for ops in gates:
+        code[ops[2][2]] = 0x7FFFFFFF
+    rewrite(path, code, jt, tail)
+    return 'Time Attack rounds 1-7 open (%s), Visual Mode open (%s)' % (ta, vm)
+
+
 # Special Setup's draw sub in every special stage: sort draw list 3 by OBJECTVALUE5, descending (a bubble
 # sort in script, ~45 hblanks a frame) -> PS1SortDrawList 3, 5 (RSDKv3/Script.cpp: the same loop natively,
 # down to the temp values and array positions it leaves), then End.
@@ -681,6 +732,7 @@ def patch_air_bubble(data):
 def main():
     data = sys.argv[1]
     print('PS001.bin: ' + patch_options(data))
+    print('PS001.bin / PS002.bin: ' + patch_unlocks(data))
     print('SS*.bin: ' + patch_ss_sort(data))
     print('SS*.bin: ' + patch_ss_ramp(data))
     print('RS*.bin: ' + patch_parallax_ramp(data))

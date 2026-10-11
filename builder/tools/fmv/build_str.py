@@ -23,7 +23,13 @@ Output: Data/Videos/<Name>.str (2336-byte sectors, mkpsxiso type="mixed") + <Nam
 Self-check: the audio slots hold channels 0/1 alternately (1 in 8 each) and every video frame's sectors
 are complete and in order.
 
-Usage: build_str.py VIDEOS_DIR DATA_DIR
+JP soundtrack with the vocals (optional, tester report 2026-10-10, user: "JP audio, Steam picture"): --jp DIR names a folder
+of the same videos whose first audio track is the Japanese soundtrack with its vocal songs (the "videos JPN" mod folder,
+any case: opening.ogv); channel 0 (JP) is taken from there, Opening delayed 307 ms to Steam's picture (measured,
+constant; the endings line up as they are). The picture and the US channel stay Steam's; a video the folder lacks
+keeps Steam's JP track. Without --jp the output is unchanged.
+
+Usage: build_str.py VIDEOS_DIR DATA_DIR [--jp JP_VIDEOS_DIR]
 """
 import glob, os, struct, subprocess, sys, tempfile
 
@@ -43,6 +49,8 @@ WIDTH, HEIGHT = 320, 176
 # bright colour in flat areas (the same blocks in ffmpeg's STR decode, so in the bitstream). 640x368 keeps
 # its aspect ratio: 306x176, centred in 320 with black side bars.
 SCALE = 'scale=306:176:flags=lanczos,pad=%d:%d:7:0:black' % (WIDTH, HEIGHT)
+# --jp: the vocal soundtrack's lead over Steam's picture, per video (ms); others 0.
+JP_DELAY_MS = {'opening': 307}
 
 
 def run(cmd):
@@ -55,7 +63,7 @@ def xa_sectors(path):
     return [bytearray(x[i:i + S]) for i in range(0, len(x), S)]
 
 
-def build(src, out_dir, tmp):
+def build(src, out_dir, tmp, jp_src=None):
     name = os.path.splitext(os.path.basename(src))[0]
     nut, base = os.path.join(tmp, 'v.nut'), os.path.join(tmp, 'v.str')
     tracks = subprocess.run([FFPROBE, '-v', 'error', '-select_streams', 'a', '-show_entries', 'stream=index', '-of', 'csv=p=0', src],
@@ -63,7 +71,12 @@ def build(src, out_dir, tmp):
     audio = {}
     for track, ch in ((0, CH_JP), (1, CH_US)):  # one track only (Pencil_Test): both soundtracks hear it
         wav, xa = os.path.join(tmp, 'a%d.wav' % ch), os.path.join(tmp, 'a%d.xa' % ch)
-        run([FFMPEG, '-v', 'error', '-y', '-i', src, '-map', '0:a:%d' % min(track, len(tracks) - 1), '-c:a', 'pcm_s16le', wav])
+        if ch == CH_JP and jp_src:
+            delay = JP_DELAY_MS.get(name.lower(), 0)
+            run([FFMPEG, '-v', 'error', '-y', '-i', jp_src, '-map', '0:a:0'] + (['-af', 'adelay=%d:all=1' % delay] if delay else [])
+                + ['-c:a', 'pcm_s16le', wav])
+        else:
+            run([FFMPEG, '-v', 'error', '-y', '-i', src, '-map', '0:a:%d' % min(track, len(tracks) - 1), '-c:a', 'pcm_s16le', wav])
         run([PSXAVENC, '-q', '-t', 'xa', '-f', '37800', '-b', '4', '-c', '2', '-F', str(XA_FILE), '-C', str(ch), wav, xa])
         audio[ch] = xa_sectors(xa)
     # The soundtracks can run past the last picture (Bad_Ending's US track: 5.7 s), and the Theora streams
@@ -142,8 +155,19 @@ def build(src, out_dir, tmp):
         name, len(out) // S, len(out) / S * 2352 / 1048576, len(frames), len(frames) / 15, video, frame_secs, used[CH_JP], used[CH_US], rle_max)
 
 
+def jp_sources(jp_dir):
+    """{video name, lower case: path} of a --jp folder (the mod spells opening.ogv in lower case)."""
+    if not jp_dir:
+        return {}
+    if not os.path.isdir(jp_dir):
+        sys.exit('ERROR: --jp %s is not a folder' % jp_dir)
+    return {os.path.splitext(f)[0].lower(): os.path.join(jp_dir, f) for f in os.listdir(jp_dir) if f.lower().endswith('.ogv')}
+
+
 def main():
-    videos, data = sys.argv[1], sys.argv[2]
+    args = sys.argv[1:]
+    jp = jp_sources(args[args.index('--jp') + 1]) if '--jp' in args else {}
+    videos, data = args[0], args[1]
     out_dir = os.path.join(data, 'Videos')
     os.makedirs(out_dir, exist_ok=True)
     srcs = sorted(glob.glob(os.path.join(videos, '*.ogv')))
@@ -151,7 +175,10 @@ def main():
         sys.exit('ERROR: no .ogv in %s' % videos)
     with tempfile.TemporaryDirectory() as tmp:
         for src in srcs:
-            print(build(src, out_dir, tmp), flush=True)
+            name = os.path.splitext(os.path.basename(src))[0].lower()
+            jp_src = jp.get(name) if name != 'pencil_test' else None  # Pencil_Test: the same file in both
+            print(build(src, out_dir, tmp, jp_src) + (' | JP audio: %s' % os.path.basename(jp_src) if jp_src else ''),
+                  flush=True)
 
 
 if __name__ == '__main__':

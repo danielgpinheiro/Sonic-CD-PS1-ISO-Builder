@@ -36,6 +36,8 @@ uses directly:
   audio (a folder like `videos JPN`, whose first audio track is the Japanese soundtrack), pass `--jp-videos folder`:
   with the JP soundtrack selected, the opening and the endings play that audio over the Steam picture. Without the
   option nothing changes.
+- **No freeze if the CD drive stops answering:** in the pause menu or at the end of a video, the game used to wait for
+  the drive forever; it now asks again after a few seconds and carries on.
 
 ## Earlier update: Tails from the start, smoother and faster (October 2026)
 
@@ -88,7 +90,7 @@ Just rebuild your disc image with this version of the builder (same steps as bef
 
 Built from the Steam files **without** a license file and with the tool versions listed under
 [Requirements](#requirements), the English image is
-`SonicCD-PS1-EN.bin` SHA-256 `11eafe6d46284d8b7e90d70a8cb130b2b71ad5fd89c5b386c41aebc52c583101`.
+`SonicCD-PS1-EN.bin` SHA-256 `1903c0ff3ca6d0ceaa79cf014b3ab0790426d26a7d912beda492e749bdc34bb8`.
 Other versions of FFmpeg or psxavenc may encode the music and videos slightly differently, which changes
 the hash but not the game. With a license file the license sectors differ, so the hash does too.
 

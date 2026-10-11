@@ -123,6 +123,12 @@ void DecDCTin(const uint32_t *data, int mode) {
 }
 
 void DecDCTinRaw(const uint32_t *data, size_t length) {
+    // The previous MDEC-in DMA must have ended (CHCR start/busy bit clear) before this one starts. PCSX-ReARMed
+    // starts a DMA only on a 0 -> 1 change of that bit and ends MDEC-in DMAs by a timed event: DecDCTPutEnv's
+    // quant table, written right after the scale table, was ignored there, the tables stayed zero and every video
+    // decoded to flat gray (tester report 2026-10-11; SwanStation too). On hardware the bit is already clear.
+    for (int i = MDEC_SYNC_TIMEOUT; i && (DMA_CHCR(DMA_MDEC_IN) & (1 << 24)); i--) {
+    }
     if ((length >= DMA_CHUNK_LENGTH) && (length % DMA_CHUNK_LENGTH))
         length += DMA_CHUNK_LENGTH - 1;
 

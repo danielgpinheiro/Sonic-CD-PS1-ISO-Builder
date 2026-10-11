@@ -90,7 +90,7 @@ Just rebuild your disc image with this version of the builder (same steps as bef
 
 Built from the Steam files **without** a license file and with the tool versions listed under
 [Requirements](#requirements), the English image is
-`SonicCD-PS1-EN.bin` SHA-256 `1903c0ff3ca6d0ceaa79cf014b3ab0790426d26a7d912beda492e749bdc34bb8`.
+`SonicCD-PS1-EN.bin` SHA-256 `80047dd167fedc741a6d5068826b964abe26fcd2210e116c831d452e98c1bfd1`.
 Other versions of FFmpeg or psxavenc may encode the music and videos slightly differently, which changes
 the hash but not the game. With a license file the license sectors differ, so the hash does too.
 

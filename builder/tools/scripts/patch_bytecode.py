@@ -185,8 +185,14 @@ def rewrite(path, code, jt, tail):
 #   stages (saveRAM 3, 11, .. 35), is kept in saveRAM[39] and opens rounds 0..TEMPVALUE0-1 (OBJECTVALUE4 of the round
 #   buttons 32..38 = 0); starting it at 7 opens all seven.
 # - PS001 (Menu), Extras Menu's startup: Visual Mode (GLOBAL 5 + its label frames, two places) opens when the time
-#   attack total TEMPVALUE0 < 154612 (25'46"12, the original's condition); the threshold becomes 0x7FFFFFFF. D.A. Garden
-#   (< 224757, GLOBAL 4), Sound Test and Stage Select keep theirs.
+#   attack total TEMPVALUE0 < 154612 (25'46"12, the original's condition); the threshold becomes 0x7FFFFFFF.
+# Tester request 2026-10-12 (user: "D.A. garden unlocked from start and maybe Special Stage in Time Attack"):
+# - the same startup: D.A. Garden (GLOBAL 4 + its label frames) opens when TEMPVALUE0 < 224757 (37'27"57): 0x7FFFFFFF.
+#   The four gates come in this order: D.A. Garden (GLOBAL 4 set two instructions on), Visual Mode (GLOBAL 5), then the
+#   highlighted labels' D.A. Garden and Visual Mode. Sound Test and Stage Select keep theirs.
+# - PS002, Menu Control's function 3: the special stages' section opens (OBJECTVALUE7 = 1: Up / Down past the round grid
+#   reach it) when the round total TEMPVALUE1 < 182105 (30'21"05): 0x7FFFFFFF. Both are recomputed from the records at
+#   every load of those menus: new and existing saves get them.
 def patch_unlocks(data):
     names, vars_ = bs.tables()
     path = os.path.join(data, 'Scripts', 'ByteCode', 'PS002.bin')
@@ -202,6 +208,15 @@ def patch_unlocks(data):
         sys.exit('ERROR patch_bytecode: PS002 function 2 is not the round unlock (%s)' % head)
     ta = 'already patched' if head[0][1][1] == 7 else 'patched'
     code[ins[0][2][1][2]] = 7
+    f3 = instructions(code, fns[3][0], names, vars_)
+    f3 = f3[:next(k for k, (_, n, _) in enumerate(f3) if n == 'EndFunction')]
+    sgates = [k for k, (_, n, ops) in enumerate(f3) if n == 'IfLower' and ops[1][1] == ('TEMPVALUE1', 0)
+              and ops[2][0] == 'int' and ops[2][1] in (182105, 0x7FFFFFFF)]
+    if len(sgates) != 1 or f3[sgates[0] + 1][1] != 'Equal' or f3[sgates[0] + 1][2] != [
+            ('var', ('OBJECTVALUE7', 0), f3[sgates[0] + 1][2][0][2]), ('int', 1, f3[sgates[0] + 1][2][1][2])]:
+        sys.exit('ERROR patch_bytecode: PS002 function 3: %d special-stage gates' % len(sgates))
+    ss = 'already patched' if f3[sgates[0]][2][2][1] == 0x7FFFFFFF else 'patched'
+    code[f3[sgates[0]][2][2][2]] = 0x7FFFFFFF
     rewrite(path, code, jt, tail)
 
     path = os.path.join(data, 'Scripts', 'ByteCode', 'PS001.bin')
@@ -211,16 +226,25 @@ def patch_unlocks(data):
     tail = raw[p2:]
     extras, _ = object_index(data, 'Menu', 'Extras Menu')
     start = instructions(code, bs.subs(path)[extras][3], names, vars_)
-    gates = [ops for _, n, ops in start if n == 'IfLower' and ops[1][1] == ('TEMPVALUE0', 0)
-             and ops[2][0] == 'int' and ops[2][1] in (154612, 0x7FFFFFFF)]
-    sets = [k for k, (_, n, ops) in enumerate(start) if n == 'Equal' and ops[0][1] == ('GLOBAL', 1, (0, 5))]
-    if len(gates) != 2 or len(sets) != 1 or start[sets[0] - 2][1] != 'IfLower' or start[sets[0] - 2][2] is not gates[0]:
-        sys.exit('ERROR patch_bytecode: Extras Menu startup: %d Visual Mode gates, %d GLOBAL 5 sets' % (len(gates), len(sets)))
-    vm = 'already patched' if gates[0][2][1] == 0x7FFFFFFF else 'patched'
-    for ops in gates:
-        code[ops[2][2]] = 0x7FFFFFFF
+    # the four gates in order: D.A. Garden, Visual Mode, D.A. Garden's and Visual Mode's highlighted labels
+    want = [(224757, 4), (154612, 5), (224757, None), (154612, None)]
+    gates = [k for k, (_, n, ops) in enumerate(start) if n == 'IfLower' and ops[1][1] == ('TEMPVALUE0', 0)
+             and ops[2][0] == 'int' and ops[2][1] in (154612, 224757, 0x7FFFFFFF)]
+    ok = len(gates) == 4
+    for k, (orig, glob) in zip(gates, want):
+        ok = ok and start[k][2][2][1] in (orig, 0x7FFFFFFF)
+        if ok and glob is not None:
+            n2, ops2 = start[k + 2][1], start[k + 2][2]
+            ok = n2 == 'Equal' and ops2[0][1] == ('GLOBAL', 1, (0, glob))
+    if not ok:
+        sys.exit('ERROR patch_bytecode: Extras Menu startup: %d D.A. Garden / Visual Mode gates, not as expected' % len(gates))
+    vm = 'already patched' if start[gates[1]][2][2][1] == 0x7FFFFFFF else 'patched'
+    da = 'already patched' if start[gates[0]][2][2][1] == 0x7FFFFFFF else 'patched'
+    for k in gates:
+        code[start[k][2][2][2]] = 0x7FFFFFFF
     rewrite(path, code, jt, tail)
-    return 'Time Attack rounds 1-7 open (%s), Visual Mode open (%s)' % (ta, vm)
+    return 'Time Attack rounds 1-7 open (%s), special stages open (%s), Visual Mode open (%s), D.A. Garden open (%s)' % (
+        ta, ss, vm, da)
 
 
 # Special Setup's draw sub in every special stage: sort draw list 3 by OBJECTVALUE5, descending (a bubble

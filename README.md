@@ -27,11 +27,23 @@ uses directly:
 - **Disc layout** → files placed in the order the game loads them, a file index so opening a file needs no
   directory reads, source files left off.
 
-## Latest update: Time Attack and Visual Mode open, JP vocal videos (October 2026)
+## Latest update: D.A. Garden and the special stages in Time Attack open, sprite glitches fixed (October 2026)
+
+- **D.A. Garden is open from the start** (Extras), next to Visual Mode. Sound Test and Stage Select keep their
+  original conditions.
+- **Time Attack's special stages are open from the start**: press Down past the zones to reach Special Zones 1-7.
+  Both also open with an existing save.
+- **Tidal Tempest: no stray strip of water surface** in the looping vertical shafts of act 2.
+- **Metallic Madness: no stray "platforms"** (pieces of doors and bombs from elsewhere in the act) showing up with no
+  collision, most often seen when flying as Tails.
+
+  Both were sprites far away from the screen being drawn on it: the PS1's GPU wraps coordinates about 2,000 pixels
+  out. The game now skips any sprite that is off screen, as the PC version does.
+
+## Earlier update: Time Attack and Visual Mode open, JP vocal videos (October 2026)
 
 - **Time Attack's seven rounds are open from the start**, and **Visual Mode** (Extras: watch the opening, the endings
-  and the pencil test) no longer needs a time attack record. D.A. Garden, Sound Test and Stage Select keep their
-  original conditions.
+  and the pencil test) no longer needs a time attack record.
 - **Optional: the Japanese soundtrack's videos with their vocal songs.** If you have the videos with the Japanese vocal
   audio (a folder like `videos JPN`, whose first audio track is the Japanese soundtrack), pass `--jp-videos folder`:
   with the JP soundtrack selected, the opening and the endings play that audio over the Steam picture. Without the
@@ -90,7 +102,7 @@ Just rebuild your disc image with this version of the builder (same steps as bef
 
 Built from the Steam files **without** a license file and with the tool versions listed under
 [Requirements](#requirements), the English image is
-`SonicCD-PS1-EN.bin` SHA-256 `80047dd167fedc741a6d5068826b964abe26fcd2210e116c831d452e98c1bfd1`.
+`SonicCD-PS1-EN.bin` SHA-256 `3232b0a34546953e05552e587eb785005e7575362ad361c2c6189d02d64b8ab8`.
 Other versions of FFmpeg or psxavenc may encode the music and videos slightly differently, which changes
 the hash but not the game. With a license file the license sectors differ, so the hash does too.
 
@@ -102,6 +114,7 @@ the license sectors, the file index, and every file against its source.
 - The whole game: all zones in every time period, time travel, the special stages, bosses, Secrets,
   Time Attack, the opening and ending videos, the credits.
 - Sonic and Tails, both playable from the start (in the 2011 version Tails is unlocked by finishing the game).
+- Open from the start: all of Time Attack (the seven rounds and the special stages), Visual Mode and D.A. Garden.
 - **Both soundtracks** (US and JP), switchable in the menu, also in the videos.
 - English or Japanese (one disc each).
 - Saving on the **memory card in slot 1** (one block, with a Sonic CD icon): save slots, Time Attack

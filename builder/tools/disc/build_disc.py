@@ -3,7 +3,7 @@
 
 A MODE2/2352 BIN/CUE is needed for CD-XA music and STR files with XA audio (2336-byte mixed
 sectors, which an hdiutil ISO can't carry). The image boots through the BIOS too:
-SYSTEM.CNF (BOOT = cdrom:\\PSX.EXE;1) + PSX.EXE (the current rsdkv3.ps-exe) + the Sony
+SYSTEM.CNF (BOOT = cdrom:\\SONICCD.EXE;1) + SONICCD.EXE (the current rsdkv3.ps-exe) + the Sony
 license sectors, taken from the workspace's LICENSE.DAT (never copied into the repo; build/ is
 git-ignored).
 
@@ -42,7 +42,10 @@ HERE = os.path.dirname(os.path.abspath(__file__))
 REPO = os.path.abspath(os.path.join(HERE, '..', '..'))
 MKPSXISO = os.environ.get('MKPSXISO') or os.path.join(REPO, '..', 'mkpsxiso-2.30-Darwin', 'bin', 'mkpsxiso')
 
-SYSTEM_CNF = 'BOOT = cdrom:\\PSX.EXE;1\r\nTCB = 4\r\nEVENT = 10\r\nSTACK = 801FFFF0\r\n'
+# The disc's executable (SYSTEM.CNF boots it): the game's name instead of PSX.EXE (emulators and optical drive
+# emulators list a disc by it)
+EXE_NAME = 'SONICCD.EXE'
+SYSTEM_CNF = 'BOOT = cdrom:\\%s;1\r\nTCB = 4\r\nEVENT = 10\r\nSTACK = 801FFFF0\r\n'
 
 
 def file_type(path):
@@ -69,7 +72,7 @@ def disc_files(iso_root):
     for d, dirs, names in os.walk(iso_root):
         dirs[:] = sorted(x for x in dirs if not x.startswith('.'))
         out += [os.path.relpath(os.path.join(d, n), iso_root) for n in sorted(names) if not n.startswith('.')]
-    return sorted(f for f in out if os.sep in f)  # root files: only SYSTEM.CNF + PSX.EXE (added by main)
+    return sorted(f for f in out if os.sep in f)  # root files: only SYSTEM.CNF + EXE_NAME (added by main)
 
 
 def layout(iso_root):
@@ -173,14 +176,14 @@ def main():
     work = os.path.join(os.path.dirname(out), 'disc')
     os.makedirs(work, exist_ok=True)
     cnf = os.path.join(work, 'SYSTEM.CNF')
-    open(cnf, 'w', newline='').write(SYSTEM_CNF)
+    open(cnf, 'w', newline='').write(SYSTEM_CNF % EXE_NAME)
     if lic and not os.path.exists(lic):
         sys.exit('ERROR: license file %s not found' % lic)
 
     counts = {}
     tree = []
     tree.append('\t\t\t<file name="SYSTEM.CNF" source=%s date="%s"/>' % (quoteattr(cnf), DISC_DATE))
-    tree.append('\t\t\t<file name="PSX.EXE" source=%s date="%s"/>' % (quoteattr(exe), DISC_DATE))
+    tree.append('\t\t\t<file name="%s" source=%s date="%s"/>' % (EXE_NAME, quoteattr(exe), DISC_DATE))
     files, n_ordered = layout(iso_root)
     idx = os.path.join(work, IDX_NAME)
     open(idx, 'wb').write(bytes(16 + 12 * len(files)))  # placeholder: final size, LBAs after mastering

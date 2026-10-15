@@ -12,7 +12,7 @@ Sector format and codes from psx-spx "CDROM Sector Encoding" (cdromformat.md):
 - ISO9660: every file equals its source (build/iso, SYSTEM.CNF, rsdkv3.ps-exe); mixed files
   (CD-XA/STR) compared sector by sector as 2336-byte records (sub-header + data; mkpsxiso fills in
   the EDC/ECC the encoder leaves zero); no source-only file
-  (build_disc.SOURCE_ONLY) on the disc; SYSTEM.CNF boots cdrom:\\PSX.EXE;1; PSX.EXE is a PS-X EXE.
+  (build_disc.SOURCE_ONLY) on the disc; SYSTEM.CNF boots cdrom:\\EXE_NAME;1 (build_disc.EXE_NAME); EXE_NAME is a PS-X EXE.
 
 Usage: verify_disc.py [BIN] [ISO_ROOT] [EXE] [LICENSE|none]
   defaults: build/game.bin build/iso rsdkv3.ps-exe ../LICENSE.DAT
@@ -189,10 +189,10 @@ def main():
             continue
         if name.upper() == 'SYSTEM.CNF':
             cnf = user(el)[:sz]
-            if b'BOOT = cdrom:\\PSX.EXE;1' not in cnf:
-                err('SYSTEM.CNF does not boot cdrom:\\PSX.EXE;1')
+            if ('BOOT = cdrom:\\%s;1' % build_disc.EXE_NAME).encode() not in cnf:
+                err('SYSTEM.CNF does not boot cdrom:\\%s;1' % build_disc.EXE_NAME)
             continue
-        src = exe if name.upper() == 'PSX.EXE' else (
+        src = exe if name.upper() == build_disc.EXE_NAME else (
             os.path.join(iso_root, src_files[name.lower()]) if name.lower() in src_files else None)
         if not src:
             err('%s: no source file' % name); continue
@@ -212,8 +212,8 @@ def main():
         compared += 1
         if not ok:
             err('%s differs from %s' % (name, os.path.relpath(src, REPO)))
-        if name.upper() == 'PSX.EXE' and data[:8] != b'PS-X EXE':
-            err('PSX.EXE is not a PS-X EXE')
+        if name.upper() == build_disc.EXE_NAME and data[:8] != b'PS-X EXE':
+            err('%s is not a PS-X EXE' % build_disc.EXE_NAME)
     missing = [f for f in src_files.values() if not build_disc.excluded(f) and
                f.replace(os.sep, '/').upper() not in {x[0].upper() for x in files}]
     for f in missing:

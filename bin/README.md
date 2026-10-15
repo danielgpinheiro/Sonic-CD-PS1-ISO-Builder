@@ -1,6 +1,6 @@
 # SonicCD-PS1.exe
 
-The PlayStation executable (PS-X EXE, 391168 bytes) that `build_iso.py` puts on the disc as `PSX.EXE`:
+The PlayStation executable (PS-X EXE, 391168 bytes) that `build_iso.py` puts on the disc as `SONICCD.EXE`:
 Retro Engine v3 (RSDKv3 decompilation) ported to the PS1 with psyqo.
 
 - Built from the RSDKv3-ps1 port at commit `3e38342` (2026-10-06; psyqo from nugget `05b9bc30`), natural boot, retail 2 MB RAM.

@@ -753,6 +753,239 @@ def patch_air_bubble(data):
     return 'AirBubble main native in %s%s' % (', '.join(done) or '-', ' (already: %s)' % ' '.join(already) if already else '')
 
 
+# The HUD's draw sub (GS000, every act; docs/43 C2): only its first IfEqual opcode becomes PS1HudDraw (RSDKv3/Script.cpp:
+# the same sub natively). The whole sub is checked (84 instructions, 524 words) and its switch's jump-table entries
+# (cases 1-2, default and end, the case bodies) from the object's draw jump table.
+def hud_draw():
+    I = lambda v: ('int', v)
+    G = lambda i: ('var', ('GLOBAL', 1, (0, i)))
+    T0, T1 = V('TEMPVALUE0'), V('TEMPVALUE1')
+    D = lambda f, x, y: ('DrawSpriteScreenXY', [f, x, y])
+    N = lambda x, y, val, n, all_: ('DrawNumbers', [I(0), x, I(y), val, I(n), I(8), I(all_)])
+    return [('IfEqual', [I(0), V('PLAYERVALUE0'), I(0)]), ('Inc', [V('OBJECTVALUE4')]),
+            ('IfEqual', [I(2), V('OBJECTVALUE4'), I(16)]), ('Equal', [V('OBJECTVALUE4'), I(0)]), ('endif', []),
+            ('else', []), ('IfEqual', [I(4), V('STAGEMINUTES'), I(9)]), ('Inc', [V('OBJECTVALUE4')]),
+            ('IfEqual', [I(6), V('OBJECTVALUE4'), I(16)]), ('Equal', [V('OBJECTVALUE4'), I(0)]), ('endif', []),
+            ('endif', []), ('endif', []),
+            D(I(10), I(17), I(13)),
+            ('IfEqual', [I(8), V('STAGEMINUTES'), I(9)]), ('IfGreater', [I(10), V('OBJECTVALUE4'), I(7)]),
+            D(I(11), I(17), I(29)), ('endif', []), ('endif', []),
+            ('IfEqual', [I(12), V('PLAYERVALUE0'), I(0)]), ('IfGreater', [I(14), V('OBJECTVALUE4'), I(7)]),
+            D(I(12), I(17), I(45)), ('endif', []), ('endif', []),
+            D(I(13), I(67), I(29)),
+            N(I(104), 13, G(9), 6, 0), N(I(104), 29, V('STAGEMILLISECONDS'), 2, 1), N(I(80), 29, V('STAGESECONDS'), 2, 1),
+            N(I(56), 29, V('STAGEMINUTES'), 1, 1), N(I(80), 45, V('PLAYERVALUE0'), 3, 0),
+            ('IfEqual', [I(16), V('STAGEDEBUGMODE'), I(1)]), ('Equal', [T0, V('PLAYERXPOS')]), ('ShR', [T0, I(16)]),
+            ('Equal', [T1, V('SCREENXSIZE')]), ('Sub', [T1, I(24)]), N(T1, 13, T0, 5, 1),
+            ('Equal', [T0, V('PLAYERYPOS')]), ('ShR', [T0, I(16)]), ('IfLower', [I(18), T0, I(0)]), ('FlipSign', [T0]),
+            ('endif', []), N(T1, 29, T0, 5, 1), ('Sub', [T1, I(42)]), D(I(14), T1, I(15)), D(I(21), T1, I(31)),
+            ('endif', []),
+            ('Equal', [T0, V('OBJECTPROPERTYVALUE')]), ('Add', [T0, I(17)]), D(T0, I(16), I(212)), D(I(14), I(32), I(220)),
+            ('IfLower', [I(20), G(11), I(10)]), N(I(40), 217, G(11), 1, 1), ('Equal', [T1, I(52)]), ('else', []),
+            N(I(48), 217, G(11), 2, 1), ('Equal', [T1, I(60)]), ('endif', []),
+            ('switch', [I(22), G(25)]),
+            ('IfLower', [I(28), G(26), I(100)]), D(I(15), T1, I(214)), ('else', []), ('Equal', [T0, G(26)]),
+            ('And', [T0, I(1)]), ('IfEqual', [I(30), T0, I(0)]), D(I(15), T1, I(214)), ('endif', []), ('endif', []),
+            ('break', []),
+            ('IfLower', [I(32), G(26), I(100)]), D(I(16), T1, I(214)), ('else', []), ('Equal', [T0, G(26)]),
+            ('And', [T0, I(1)]), ('IfEqual', [I(34), T0, I(0)]), D(I(16), T1, I(214)), ('endif', []), ('endif', []),
+            ('break', []), ('endswitch', []), ('End', [])]
+
+
+def patch_hud_draw(data):
+    names, vars_ = bs.tables()
+    nm = [n for n, _ in names]
+    op, ifequal = nm.index('PS1HudDraw'), nm.index('IfEqual')
+    path = os.path.join(data, 'Scripts', 'ByteCode', 'GS000.bin')
+    raw = open(path, 'rb').read()
+    code, p = bs.blocks(raw, 0)
+    jtab, p2 = bs.blocks(raw, p)
+    count, = struct.unpack_from('<H', raw, p2)
+    subs = [struct.unpack_from('<4i', raw, p2 + 2 + 16 * i) for i in range(count)]          # code pointers per object
+    jts = [struct.unpack_from('<4i', raw, p2 + 2 + 16 * count + 16 * i) for i in range(count)]  # jump table pointers
+    tmpl = hud_draw()
+    for o in range(count):
+        at = subs[o][2]  # the draw sub
+        if not 0 <= at < len(code) or code[at] not in (ifequal, op):
+            continue
+        try:
+            ins = instructions(code, at, names, vars_)
+        except (IndexError, KeyError):
+            continue
+        ins = [(a, 'IfEqual' if (a == at and n == 'PS1HudDraw') else n, o2) for a, n, o2 in ins]
+        if not matches(ins, tmpl):
+            continue
+        sw = [a for a, n, _ in ins if n == 'switch'][0]
+        brk = [a for a, n, _ in ins if n == 'break']
+        if ins[1][0] - at != 8 or ins[-1][0] - at != 523:
+            sys.exit('ERROR patch_bytecode: GS000 HUD draw with unexpected lengths')
+        j = jts[o][2] + 22  # switch 22's entries: low, high, default, end, case 1, case 2
+        want = [1, 2, ins[-2][0] - at, ins[-1][0] - at, sw + 8 - at, brk[0] + 1 - at]
+        if list(jtab[j:j + 6]) != want:
+            sys.exit('ERROR patch_bytecode: GS000 HUD draw switch entries %s != %s' % (list(jtab[j:j + 6]), want))
+        if code[at] == op:
+            return 'HUD draw native in - (already: GS000 object %d)' % o
+        code[at] = op
+        open(path, 'wb').write(encode(code) + raw[p:])
+        assert bs.blocks(open(path, 'rb').read(), 0)[0] == code
+        return 'HUD draw native in GS000 object %d @%d' % (o, at)
+    sys.exit('ERROR patch_bytecode: GS000 HUD draw not found')
+
+
+# The Ring's playerInteraction sub (GS000, every act; docs/43 C2): only its first IfNotEqual opcode becomes PS1RingTouch
+# (RSDKv3/Script.cpp: the sub's head natively, the collect path left to the VM). The whole sub is checked.
+def ring_touch():
+    I = lambda v: ('int', v)
+    G = lambda i: ('var', ('GLOBAL', 1, (0, i)))
+    return [('IfNotEqual', [I(0), V('PLAYERSTATE'), I(24)]), ('IfEqual', [I(2), V('PLAYERCOLLISIONPLANE'), V('OBJECTPROPERTYVALUE')]),
+            ('PlayerObjectCollision', [I(0), I(-8), I(-8), I(8), I(8)]), ('IfEqual', [I(4), V('CHECKRESULT'), I(1)]),
+            ('Equal', [V('OBJECTTYPE'), I(10)]), ('Inc', [V('PLAYERVALUE0')]), ('IfGreater', [I(6), V('PLAYERVALUE0'), I(999)]),
+            ('Equal', [V('PLAYERVALUE0'), I(999)]), ('endif', []),
+            ('IfGreaterOrEqual', [I(8), V('PLAYERVALUE0'), G(18)]), ('IfNotEqual', [I(10), G(0), I(2)]), ('Inc', [G(11)]),
+            ('IfEqual', [I(12), V('STAGEPLAYERLISTPOS'), I(0)]), ('PlaySfx', [I(20), I(0)]), ('else', []),
+            ('PlaySfx', [I(21), I(0)]), ('endif', []), ('endif', []), ('Add', [G(18), I(100)]),
+            ('IfGreater', [I(14), G(18), I(300)]), ('Equal', [G(18), I(1000)]), ('endif', []),
+            ('IfGreaterOrEqual', [I(16), V('PLAYERVALUE0'), I(200)]), ('IfEqual', [I(18), V('STAGEPLAYERLISTPOS'), I(0)]),
+            ('IfEqual', [I(20), V('STAGEDEBUGMODE'), I(0)]), ('SetAchievement', [I(4), I(100)]), ('endif', []), ('endif', []),
+            ('endif', []), ('endif', []),
+            ('IfEqual', [I(22), G(19), I(0)]), ('SetSfxAttributes', [I(1), I(-1), I(-100)]), ('Equal', [G(19), I(1)]),
+            ('else', []), ('SetSfxAttributes', [I(2), I(-1), I(100)]), ('Equal', [G(19), I(0)]), ('endif', []),
+            ('endif', []), ('endif', []), ('endif', []), ('End', [])]
+
+
+def patch_ring_touch(data):
+    names, vars_ = bs.tables()
+    nm = [n for n, _ in names]
+    op, ifne = nm.index('PS1RingTouch'), nm.index('IfNotEqual')
+    path = os.path.join(data, 'Scripts', 'ByteCode', 'GS000.bin')
+    raw = open(path, 'rb').read()
+    code, p = bs.blocks(raw, 0)
+    jtab, p2 = bs.blocks(raw, p)
+    count, = struct.unpack_from('<H', raw, p2)
+    subs = [struct.unpack_from('<4i', raw, p2 + 2 + 16 * i) for i in range(count)]
+    tmpl = ring_touch()
+    for o in range(count):
+        at = subs[o][1]  # the playerInteraction sub
+        if not 0 <= at < len(code) or code[at] not in (ifne, op):
+            continue
+        try:
+            ins = instructions(code, at, names, vars_)
+        except (IndexError, KeyError):
+            continue
+        ins = [(a, 'IfNotEqual' if (a == at and n == 'PS1RingTouch') else n, o2) for a, n, o2 in ins]
+        if not matches(ins, tmpl):
+            continue
+        if ins[1][0] - at != 8 or ins[4][0] - at != 36 or ins[-1][0] - at != 214:
+            sys.exit('ERROR patch_bytecode: GS000 Ring playerInteraction with unexpected lengths')
+        if code[at] == op:
+            return 'Ring touch native in - (already: GS000 object %d)' % o
+        code[at] = op
+        open(path, 'wb').write(encode(code) + raw[p:])
+        assert bs.blocks(open(path, 'rb').read(), 0)[0] == code
+        return 'Ring touch native in GS000 object %d @%d' % (o, at)
+    sys.exit('ERROR patch_bytecode: GS000 Ring playerInteraction not found')
+
+
+# Tidal Tempest's Water draw sub (RS020-RS029; docs/43 C2): only its first Inc opcode becomes PS1WaterDraw (RSDKv3/Script.cpp:
+# the same sub natively). The whole sub is checked (20 instructions, 149 words).
+def water_draw():
+    I = lambda v: ('int', v)
+    G = lambda i: ('var', ('GLOBAL', 1, (0, i)))
+    T0, T1 = V('TEMPVALUE0'), V('TEMPVALUE1')
+    D = ('DrawSpriteScreenFX', [V('OBJECTFRAME'), I(3), T0, T1])
+    return [('Inc', [V('OBJECTVALUE0')]), ('IfGreater', [I(0), V('OBJECTVALUE0'), I(23)]), ('Equal', [V('OBJECTVALUE0'), I(0)]),
+            ('Inc', [V('OBJECTFRAME')]), ('And', [V('OBJECTFRAME'), I(3)]), ('endif', []),
+            ('Equal', [T0, V('SCREENXOFFSET')]), ('Sin', [T1, G(8)]), ('ShR', [T1, I(5)]), ('Add', [T0, T1]),
+            ('And', [T0, I(63)]), ('FlipSign', [T0]), ('Equal', [T1, V('STAGEWATERLEVEL')]), ('Sub', [T1, V('SCREENYOFFSET')]),
+            D, ('Add', [T0, I(128)]), D, ('Add', [T0, I(128)]), D, ('Add', [T0, I(128)]), D, ('End', [])]
+
+
+def patch_water_draw(data):
+    names, vars_ = bs.tables()
+    nm = [n for n, _ in names]
+    op, inc = nm.index('PS1WaterDraw'), nm.index('Inc')
+    bc = os.path.join(data, 'Scripts', 'ByteCode')
+    tmpl = water_draw()
+    done, already = [], []
+    for fn in sorted(os.listdir(bc)):
+        if not fn.startswith('RS'):
+            continue
+        path = os.path.join(bc, fn)
+        raw = open(path, 'rb').read()
+        code, p = bs.blocks(raw, 0)
+        new = []
+        for at in range(len(code)):
+            if code[at] not in (inc, op):
+                continue
+            try:
+                ins = instructions(code, at, names, vars_)
+            except (IndexError, KeyError):
+                continue
+            ins = [(a, 'Inc' if (a == at and n == 'PS1WaterDraw') else n, o) for a, n, o in ins]
+            if not matches(ins, tmpl):
+                continue
+            if ins[1][0] - at != 4 or ins[-1][0] - at != 148:
+                sys.exit('ERROR patch_bytecode: %s @%d Water draw with unexpected lengths' % (fn, at))
+            (already if code[at] == op else new).append(at if code[at] != op else '%s@%d' % (fn, at))
+        if new:
+            for at in new:
+                code[at] = op
+            open(path, 'wb').write(encode(code) + raw[p:])
+            assert bs.blocks(open(path, 'rb').read(), 0)[0] == code
+            done += ['%s@%d' % (fn, at) for at in new]
+    return 'Water draw native in %s%s' % (', '.join(done) or '-', ' (already: %s)' % ' '.join(already) if already else '')
+
+
+# Tidal Tempest's BGEffects draw sub (RS020-RS029; docs/43 C2): only its first Inc opcode becomes PS1WaterPalette.
+def water_palette():
+    I = lambda v: ('int', v)
+    L = lambda i: ('var', ('TILELAYERDEFORMATIONOFFSETW', 1, (0, i)))
+    T0 = V('TEMPVALUE0')
+    return [('Inc', [V('OBJECTVALUE0')]), ('IfGreater', [I(0), V('OBJECTVALUE0'), I(1)]), ('Inc', [L(0)]), ('Inc', [L(2)]),
+            ('Equal', [V('OBJECTVALUE0'), I(0)]), ('endif', []),
+            ('Equal', [T0, V('STAGEWATERLEVEL')]), ('Sub', [T0, V('SCREENYOFFSET')]),
+            ('IfLower', [I(2), T0, I(0)]), ('Equal', [T0, I(0)]), ('endif', []),
+            ('IfGreater', [I(4), T0, V('SCREENYSIZE')]), ('Equal', [T0, V('SCREENYSIZE')]), ('endif', []),
+            ('SetActivePalette', [('var', ('OBJECTVALUE1', 1, (0, 19))), I(0), T0]),
+            ('SetActivePalette', [I(7), T0, V('SCREENYSIZE')]), ('End', [])]
+
+
+def patch_water_palette(data):
+    names, vars_ = bs.tables()
+    nm = [n for n, _ in names]
+    op, inc = nm.index('PS1WaterPalette'), nm.index('Inc')
+    bc = os.path.join(data, 'Scripts', 'ByteCode')
+    tmpl = water_palette()
+    done, already = [], []
+    for fn in sorted(os.listdir(bc)):
+        if not fn.startswith('RS'):
+            continue
+        path = os.path.join(bc, fn)
+        raw = open(path, 'rb').read()
+        code, p = bs.blocks(raw, 0)
+        new = []
+        for at in range(len(code)):
+            if code[at] not in (inc, op):
+                continue
+            try:
+                ins = instructions(code, at, names, vars_)
+            except (IndexError, KeyError):
+                continue
+            ins = [(a, 'Inc' if (a == at and n == 'PS1WaterPalette') else n, o) for a, n, o in ins]
+            if not matches(ins, tmpl):
+                continue
+            if ins[1][0] - at != 4 or ins[-1][0] - at != 97:
+                sys.exit('ERROR patch_bytecode: %s @%d BGEffects draw with unexpected lengths' % (fn, at))
+            (already if code[at] == op else new).append(at if code[at] != op else '%s@%d' % (fn, at))
+        if new:
+            for at in new:
+                code[at] = op
+            open(path, 'wb').write(encode(code) + raw[p:])
+            assert bs.blocks(open(path, 'rb').read(), 0)[0] == code
+            done += ['%s@%d' % (fn, at) for at in new]
+    return 'BGEffects draw native in %s%s' % (', '.join(done) or '-', ' (already: %s)' % ' '.join(already) if already else '')
+
+
 def main():
     data = sys.argv[1]
     print('PS001.bin: ' + patch_options(data))
@@ -765,6 +998,10 @@ def main():
     print('GS000.bin: ' + patch_save_objects(data))
     print('PS000.bin: ' + patch_title_water(data))
     print('RS*.bin: ' + patch_air_bubble(data))
+    print('GS000.bin: ' + patch_hud_draw(data))
+    print('GS000.bin: ' + patch_ring_touch(data))
+    print('RS*.bin: ' + patch_water_draw(data))
+    print('RS*.bin: ' + patch_water_palette(data))
 
 
 if __name__ == '__main__':

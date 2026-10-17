@@ -56,8 +56,18 @@ void LoadPalette(const char *filePath, int paletteID, int startPaletteIndex, int
 inline void SetActivePalette(byte newActivePal, int startLine, int endLine)
 {
     if (renderType == RENDER_SW) {
+#if RETRO_PLATFORM == RETRO_PS1
+        // the same bytes as the loop below, by nugget's block memset (docs/43 C2: Tidal Tempest's water calls it twice a
+        // frame over up to 240 lines)
+        if (newActivePal < PALETTE_COUNT) {
+            int end = endLine < SCREEN_YSIZE ? endLine : SCREEN_YSIZE;
+            if (end > startLine)
+                memset(&gfxLineBuffer[startLine], newActivePal, end - startLine);
+        }
+#else
         if (newActivePal < PALETTE_COUNT)
             for (int l = startLine; l < endLine && l < SCREEN_YSIZE; l++) gfxLineBuffer[l] = newActivePal;
+#endif
 
         activePalette   = fullPalette[gfxLineBuffer[0]];
         activePalette32 = fullPalette32[gfxLineBuffer[0]];

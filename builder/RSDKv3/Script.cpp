@@ -508,6 +508,10 @@ const FunctionInfo functions[] = {
     FunctionInfo("PS1SaveObjects", 3),
     FunctionInfo("PS1TitleWater", 3),
     FunctionInfo("PS1AirBubble", 3),
+    FunctionInfo("PS1HudDraw", 3),
+    FunctionInfo("PS1RingTouch", 3),
+    FunctionInfo("PS1WaterDraw", 1),
+    FunctionInfo("PS1WaterPalette", 1),
 #endif
 };
 
@@ -944,6 +948,10 @@ enum ScrFunction {
     FUNC_PS1SAVEOBJECTS,
     FUNC_PS1TITLEWATER,
     FUNC_PS1AIRBUBBLE,
+    FUNC_PS1HUDDRAW,
+    FUNC_PS1RINGTOUCH,
+    FUNC_PS1WATERDRAW,
+    FUNC_PS1WATERPALETTE,
 #endif
     FUNC_MAX_CNT
 };
@@ -2508,6 +2516,70 @@ volatile uint32_t g_ps1ScriptCalls = 0; // ProcessScript calls (SAMPLE builds)
 volatile uint32_t g_ps1ScriptOpdDirect = 0, g_ps1ScriptOpdVar = 0, g_ps1ScriptOpdConst = 0; // fetched operands (SAMPLE builds)
 volatile uint32_t g_ps1ScriptVarHist[VAR_MAX_CNT] = {}; // generic variable operands fetched, per variable (SAMPLE builds)
 #endif
+// DrawSpriteScreenFX's FX_INK case (the VM's opcode and the PS1WaterDraw native, docs/43 C2): frame `spriteFrame` of the
+// object's script at (x, y) with the entity's ink effect.
+static void PS1OpDrawSpriteInk(const ObjectScript *scriptInfo, const Entity *entity, const SpriteFrame *spriteFrame, int x, int y)
+{
+    switch (entity->inkEffect) {
+        case INK_NONE:
+            DrawSprite(x + spriteFrame->pivotX, y + spriteFrame->pivotY,
+                       spriteFrame->width, spriteFrame->height, spriteFrame->sprX, spriteFrame->sprY, scriptInfo->spriteSheetID);
+            break;
+        case INK_BLEND:
+            DrawBlendedSprite(x + spriteFrame->pivotX, y + spriteFrame->pivotY,
+                              spriteFrame->width, spriteFrame->height, spriteFrame->sprX, spriteFrame->sprY,
+                              scriptInfo->spriteSheetID);
+            break;
+        case INK_ALPHA:
+            DrawAlphaBlendedSprite(x + spriteFrame->pivotX, y + spriteFrame->pivotY,
+                                   spriteFrame->width, spriteFrame->height, spriteFrame->sprX, spriteFrame->sprY, entity->alpha,
+                                   scriptInfo->spriteSheetID);
+            break;
+        case INK_ADD:
+            DrawAdditiveBlendedSprite(x + spriteFrame->pivotX, y + spriteFrame->pivotY,
+                                      spriteFrame->width, spriteFrame->height, spriteFrame->sprX, spriteFrame->sprY,
+                                      entity->alpha, scriptInfo->spriteSheetID);
+            break;
+        case INK_SUB:
+            DrawSubtractiveBlendedSprite(x + spriteFrame->pivotX, y + spriteFrame->pivotY,
+                                         spriteFrame->width, spriteFrame->height, spriteFrame->sprX, spriteFrame->sprY,
+                                         entity->alpha, scriptInfo->spriteSheetID);
+            break;
+    }
+}
+// DrawNumbers' opcode body (the VM's case FUNC_DRAWNUMBERS and the PS1HudDraw native, docs/43 C2): draws
+// operands[3] with operands[4] digits from operands[1] leftwards; leaves the operand registers as the opcode does.
+static void PS1OpDrawNumbers(ObjectScript *scriptInfo)
+{
+    int i      = 10;
+    if (scriptEng.operands[6]) {
+        while (scriptEng.operands[4] > 0) {
+            int frameID = scriptEng.operands[3] % i / (i / 10) + scriptEng.operands[0];
+            const SpriteFrame *spriteFrame = &scriptFrames[scriptInfo->frameListOffset + frameID];
+            DrawSprite(spriteFrame->pivotX + scriptEng.operands[1], spriteFrame->pivotY + scriptEng.operands[2], spriteFrame->width,
+                       spriteFrame->height, spriteFrame->sprX, spriteFrame->sprY, scriptInfo->spriteSheetID);
+            scriptEng.operands[1] -= scriptEng.operands[5];
+            i *= 10;
+            --scriptEng.operands[4];
+        }
+    }
+    else {
+        int extra = 10;
+        if (scriptEng.operands[3])
+            extra = 10 * scriptEng.operands[3];
+        while (scriptEng.operands[4] > 0) {
+            if (extra >= i) {
+                int frameID = scriptEng.operands[3] % i / (i / 10) + scriptEng.operands[0];
+                const SpriteFrame *spriteFrame = &scriptFrames[scriptInfo->frameListOffset + frameID];
+                DrawSprite(spriteFrame->pivotX + scriptEng.operands[1], spriteFrame->pivotY + scriptEng.operands[2], spriteFrame->width,
+                           spriteFrame->height, spriteFrame->sprX, spriteFrame->sprY, scriptInfo->spriteSheetID);
+            }
+            scriptEng.operands[1] -= scriptEng.operands[5];
+            i *= 10;
+            --scriptEng.operands[4];
+        }
+    }
+}
 void ProcessScript(int scriptCodeStart, int jumpTableStart, byte scriptSub)
 {
     bool running      = true;
@@ -3498,38 +3570,10 @@ void ProcessScript(int scriptCodeStart, int jumpTableStart, byte scriptSub)
                 opcodeSize = 0;
                 DrawTintRectangle(scriptEng.operands[0], scriptEng.operands[1], scriptEng.operands[2], scriptEng.operands[3]);
                 break;
-            case FUNC_DRAWNUMBERS: {
+            case FUNC_DRAWNUMBERS:
                 opcodeSize = 0;
-                int i      = 10;
-                if (scriptEng.operands[6]) {
-                    while (scriptEng.operands[4] > 0) {
-                        int frameID = scriptEng.operands[3] % i / (i / 10) + scriptEng.operands[0];
-                        spriteFrame = &scriptFrames[scriptInfo->frameListOffset + frameID];
-                        DrawSprite(spriteFrame->pivotX + scriptEng.operands[1], spriteFrame->pivotY + scriptEng.operands[2], spriteFrame->width,
-                                   spriteFrame->height, spriteFrame->sprX, spriteFrame->sprY, scriptInfo->spriteSheetID);
-                        scriptEng.operands[1] -= scriptEng.operands[5];
-                        i *= 10;
-                        --scriptEng.operands[4];
-                    }
-                }
-                else {
-                    int extra = 10;
-                    if (scriptEng.operands[3])
-                        extra = 10 * scriptEng.operands[3];
-                    while (scriptEng.operands[4] > 0) {
-                        if (extra >= i) {
-                            int frameID = scriptEng.operands[3] % i / (i / 10) + scriptEng.operands[0];
-                            spriteFrame = &scriptFrames[scriptInfo->frameListOffset + frameID];
-                            DrawSprite(spriteFrame->pivotX + scriptEng.operands[1], spriteFrame->pivotY + scriptEng.operands[2], spriteFrame->width,
-                                       spriteFrame->height, spriteFrame->sprX, spriteFrame->sprY, scriptInfo->spriteSheetID);
-                        }
-                        scriptEng.operands[1] -= scriptEng.operands[5];
-                        i *= 10;
-                        --scriptEng.operands[4];
-                    }
-                }
+                PS1OpDrawNumbers(scriptInfo);
                 break;
-            }
             case FUNC_DRAWACTNAME: {
                 opcodeSize = 0;
                 int charID = 0;
@@ -3865,32 +3909,7 @@ void ProcessScript(int scriptCodeStart, int jumpTableStart, byte scriptSub)
                                            entity->rotation, entity->scale, scriptInfo->spriteSheetID);
                         break;
                     case FX_INK:
-                        switch (entity->inkEffect) {
-                            case INK_NONE:
-                                DrawSprite(scriptEng.operands[2] + spriteFrame->pivotX, scriptEng.operands[3] + spriteFrame->pivotY,
-                                           spriteFrame->width, spriteFrame->height, spriteFrame->sprX, spriteFrame->sprY, scriptInfo->spriteSheetID);
-                                break;
-                            case INK_BLEND:
-                                DrawBlendedSprite(scriptEng.operands[2] + spriteFrame->pivotX, scriptEng.operands[3] + spriteFrame->pivotY,
-                                                  spriteFrame->width, spriteFrame->height, spriteFrame->sprX, spriteFrame->sprY,
-                                                  scriptInfo->spriteSheetID);
-                                break;
-                            case INK_ALPHA:
-                                DrawAlphaBlendedSprite(scriptEng.operands[2] + spriteFrame->pivotX, scriptEng.operands[3] + spriteFrame->pivotY,
-                                                       spriteFrame->width, spriteFrame->height, spriteFrame->sprX, spriteFrame->sprY, entity->alpha,
-                                                       scriptInfo->spriteSheetID);
-                                break;
-                            case INK_ADD:
-                                DrawAdditiveBlendedSprite(scriptEng.operands[2] + spriteFrame->pivotX, scriptEng.operands[3] + spriteFrame->pivotY,
-                                                          spriteFrame->width, spriteFrame->height, spriteFrame->sprX, spriteFrame->sprY,
-                                                          entity->alpha, scriptInfo->spriteSheetID);
-                                break;
-                            case INK_SUB:
-                                DrawSubtractiveBlendedSprite(scriptEng.operands[2] + spriteFrame->pivotX, scriptEng.operands[3] + spriteFrame->pivotY,
-                                                             spriteFrame->width, spriteFrame->height, spriteFrame->sprX, spriteFrame->sprY,
-                                                             entity->alpha, scriptInfo->spriteSheetID);
-                                break;
-                        }
+                        PS1OpDrawSpriteInk(scriptInfo, entity, spriteFrame, scriptEng.operands[2], scriptEng.operands[3]);
                         break;
                     case FX_TINT:
                         if (entity->inkEffect == INK_ALPHA) {
@@ -4727,6 +4746,215 @@ void ProcessScript(int scriptCodeStart, int jumpTableStart, byte scriptSub)
                     scriptEng.operands[0] = 0, scriptEng.operands[1] = 0; // Equal OBJECTTYPE, 0
                 }
                 scriptCodePtr = B + 278; // its End
+                break;
+            }
+            case FUNC_PS1HUDDRAW: {
+                // The HUD's draw sub (GS000; every act, every frame: ~45 VM instructions, ~6 hblanks of VM in R41A,
+                // docs/43 C2). tools/scripts/patch_bytecode.py checks the whole sub (84 instructions, 524 words, its
+                // switch's jump-table entries) and swaps only its first opcode (IfEqual 0, PLAYERVALUE0, 0) for this one.
+                // The same sub natively, statement by statement: the same draws in the same order, the jump stack slots
+                // its ifs / switch push, the temp values and the operand registers each instruction leaves, then its End.
+                opcodeSize   = 0;
+                int B        = scriptCodePtr - 8; // this instruction (IfEqual's layout: 1 + 2 + 3 + 2 words)
+                Entity *e    = &objectEntityList[objectLoop];
+                Entity *pl   = playerList[activePlayer].boundEntity;
+                int *js      = &jumpTableStack[jumpTableStackPos];
+                int *v       = e->values;
+                int *ops     = scriptEng.operands;
+                int *T       = scriptEng.tempValue;
+                int *G       = globalVariables;
+                auto ops3    = [ops](int a, int b, int c) { ops[0] = a, ops[1] = b, ops[2] = c; };
+                auto dsxy    = [&](int f, int x, int y) { // DrawSpriteScreenXY f, x, y
+                    ops3(f, x, y);
+                    const SpriteFrame *sf = &scriptFrames[scriptInfo->frameListOffset + f];
+                    DrawSprite(x + sf->pivotX, y + sf->pivotY, sf->width, sf->height, sf->sprX, sf->sprY, scriptInfo->spriteSheetID);
+                };
+                auto num = [&](int f, int x, int y, int value, int digits, int step, int all) { // DrawNumbers
+                    ops[0] = f, ops[1] = x, ops[2] = y, ops[3] = value, ops[4] = digits, ops[5] = step, ops[6] = all;
+                    PS1OpDrawNumbers(scriptInfo);
+                };
+                ops3(0, pl->values[0], 0), js[1] = 0;
+                if (pl->values[0] == 0) {
+                    ops[0] = ++v[4]; // Inc OBJECTVALUE4
+                    ops3(2, v[4], 16), js[2] = 2;
+                    if (v[4] == 16)
+                        ops[0] = ops[1] = v[4] = 0;
+                }
+                else {
+                    ops3(4, stageMinutes, 9), js[2] = 4;
+                    if (stageMinutes == 9) {
+                        ops[0] = ++v[4];
+                        ops3(6, v[4], 16), js[3] = 6;
+                        if (v[4] == 16)
+                            ops[0] = ops[1] = v[4] = 0;
+                    }
+                }
+                dsxy(10, 17, 13);
+                ops3(8, stageMinutes, 9), js[1] = 8;
+                if (stageMinutes == 9) {
+                    ops3(10, v[4], 7), js[2] = 10;
+                    if (v[4] > 7)
+                        dsxy(11, 17, 29);
+                }
+                ops3(12, pl->values[0], 0), js[1] = 12;
+                if (pl->values[0] == 0) {
+                    ops3(14, v[4], 7), js[2] = 14;
+                    if (v[4] > 7)
+                        dsxy(12, 17, 45);
+                }
+                dsxy(13, 67, 29);
+                num(0, 104, 13, G[9], 6, 8, 0);
+                num(0, 104, 29, stageMilliseconds, 2, 8, 1);
+                num(0, 80, 29, stageSeconds, 2, 8, 1);
+                num(0, 56, 29, stageMinutes, 1, 8, 1);
+                num(0, 80, 45, pl->values[0], 3, 8, 0);
+                ops3(16, debugMode, 1), js[1] = 16;
+                if (debugMode == 1) {
+                    ops[0] = ops[1] = T[0] = playerList[activePlayer].XPos; // Equal TEMPVALUE0, PLAYERXPOS
+                    ops[0] = T[0] = T[0] >> 16, ops[1] = 16;              // ShR TEMPVALUE0, 16
+                    ops[0] = ops[1] = T[1] = SCREEN_XSIZE;                 // Equal TEMPVALUE1, SCREENXSIZE
+                    ops[0] = T[1] = T[1] - 24, ops[1] = 24;                // Sub TEMPVALUE1, 24
+                    num(0, T[1], 13, T[0], 5, 8, 1);
+                    ops[0] = ops[1] = T[0] = playerList[activePlayer].YPos;
+                    ops[0] = T[0] = T[0] >> 16, ops[1] = 16;
+                    ops3(18, T[0], 0), js[2] = 18;
+                    if (T[0] < 0)
+                        ops[0] = T[0] = -T[0]; // FlipSign TEMPVALUE0
+                    num(0, T[1], 29, T[0], 5, 8, 1);
+                    ops[0] = T[1] = T[1] - 42, ops[1] = 42;
+                    dsxy(14, T[1], 15);
+                    dsxy(21, T[1], 31);
+                }
+                ops[0] = ops[1] = T[0] = e->propertyValue; // Equal TEMPVALUE0, OBJECTPROPERTYVALUE
+                ops[0] = T[0] = T[0] + 17, ops[1] = 17;     // Add TEMPVALUE0, 17
+                dsxy(T[0], 16, 212);
+                dsxy(14, 32, 220);
+                ops3(20, G[11], 10), js[1] = 20;
+                if (G[11] < 10) {
+                    num(0, 40, 217, G[11], 1, 8, 1);
+                    ops[0] = ops[1] = T[1] = 52;
+                }
+                else {
+                    num(0, 48, 217, G[11], 2, 8, 1);
+                    ops[0] = ops[1] = T[1] = 60;
+                }
+                ops[0] = 22, ops[1] = G[25], js[1] = 22; // switch 22, GLOBAL[25]: cases 1, 2 (jump table checked)
+                if (G[25] == 1 || G[25] == 2) {
+                    int f = G[25] == 1 ? 15 : 16, k = G[25] == 1 ? 28 : 32;
+                    ops3(k, G[26], 100), js[2] = k;
+                    if (G[26] < 100)
+                        dsxy(f, T[1], 214);
+                    else {
+                        ops[0] = ops[1] = T[0] = G[26]; // Equal TEMPVALUE0, GLOBAL[26]
+                        ops[0] = T[0] = T[0] & 1, ops[1] = 1;
+                        ops3(k + 2, T[0], 0), js[3] = k + 2;
+                        if (T[0] == 0)
+                            dsxy(f, T[1], 214);
+                    }
+                }
+                scriptCodePtr = B + 523; // its End
+                break;
+            }
+            case FUNC_PS1RINGTOUCH: {
+                // The Ring's playerInteraction sub (GS000; every ring near the player, every frame: ~8 hblanks of VM in
+                // R41A, docs/43 C2). tools/scripts/patch_bytecode.py checks the whole sub (40 instructions, 215 words) and
+                // swaps only its first opcode (IfNotEqual 0, PLAYERSTATE, 24) for this one. Its head natively -- the state /
+                // plane tests and the touch box -- then, when the ring is collected, the VM goes on at the collect path
+                // (Equal OBJECTTYPE, 10) with the three ifs pushed; otherwise straight to the End, as after its endifs.
+                // Same jump-stack slots and operand registers as the VM.
+                opcodeSize = 0;
+                int B      = scriptCodePtr - 8; // this instruction (IfNotEqual's layout: 1 + 2 + 3 + 2 words)
+                int *js    = &jumpTableStack[jumpTableStackPos];
+                int *ops   = scriptEng.operands;
+                js[1]      = 0; // ops: (0, PLAYERSTATE, 24), decoded with the opcode
+                scriptCodePtr = B + 214; // its End
+                if (ops[1] == 24)
+                    break;
+                ops[0] = 2, ops[1] = playerList[activePlayer].collisionPlane, ops[2] = entity->propertyValue, js[2] = 2;
+                if (ops[1] != ops[2])
+                    break;
+                ops[0] = 0, ops[1] = -8, ops[2] = -8, ops[3] = 8, ops[4] = 8; // PlayerObjectCollision C_TOUCH, -8, -8, 8, 8
+                ops[5] = entity->XPos >> 16;
+                ops[6] = entity->YPos >> 16;
+                TouchCollision(ops[5] - 8, ops[6] - 8, ops[5] + 8, ops[6] + 8);
+                ops[0] = 4, ops[1] = scriptEng.checkResult, ops[2] = 1, js[3] = 4;
+                if (ops[1] != 1)
+                    break;
+                jumpTableStackPos += 3;
+                scriptCodePtr = B + 36; // Equal OBJECTTYPE, 10: the collect path in the VM
+                break;
+            }
+            case FUNC_PS1WATERDRAW: {
+                // Tidal Tempest's Water draw sub (the surface's four sprites, every frame: ~3.8 hblanks of VM in R41A,
+                // docs/43 C2). tools/scripts/patch_bytecode.py checks the whole sub (20 instructions, 149 words) and swaps
+                // only its first opcode (Inc OBJECTVALUE0) for this one. The same sub natively, statement by statement:
+                // the same draws in the same order, the jump stack slot, temp values and operand registers it leaves.
+                opcodeSize = 0;
+                int B      = scriptCodePtr - 4; // this instruction (Inc's layout: 1 + 3 words)
+                int *js    = &jumpTableStack[jumpTableStackPos];
+                int *v     = entity->values;
+                int *ops   = scriptEng.operands;
+                int *T     = scriptEng.tempValue;
+                ops[0] = ++v[0];                              // Inc OBJECTVALUE0
+                ops[0] = 0, ops[1] = v[0], ops[2] = 23, js[1] = 0; // IfGreater 0, OBJECTVALUE0, 23
+                if (v[0] > 23) {
+                    ops[0] = ops[1] = v[0] = 0;               // Equal OBJECTVALUE0, 0
+                    ops[0] = entity->frame + 1, entity->frame = (byte)ops[0]; // Inc OBJECTFRAME (the byte field wraps)
+                    ops[0] = entity->frame & 3, ops[1] = 3, entity->frame = (byte)ops[0]; // And OBJECTFRAME, 3
+                }
+                ops[0] = ops[1] = T[0] = xScrollOffset;                        // Equal TEMPVALUE0, SCREENXOFFSET
+                ops[1] = globalVariables[8], ops[0] = T[1] = Sin512(ops[1]);   // Sin TEMPVALUE1, GLOBAL[8]
+                ops[0] = T[1] = T[1] >> 5, ops[1] = 5;                         // ShR TEMPVALUE1, 5
+                ops[0] = T[0] = T[0] + T[1], ops[1] = T[1];                    // Add TEMPVALUE0, TEMPVALUE1
+                ops[0] = T[0] = T[0] & 63, ops[1] = 63;                        // And TEMPVALUE0, 63
+                ops[0] = T[0] = -T[0];                                         // FlipSign TEMPVALUE0
+                ops[0] = ops[1] = T[1] = waterLevel;                           // Equal TEMPVALUE1, STAGEWATERLEVEL
+                ops[0] = T[1] = T[1] - yScrollOffset, ops[1] = yScrollOffset;  // Sub TEMPVALUE1, SCREENYOFFSET
+                for (int k = 0; k < 4; ++k) {
+                    if (k) {
+                        ops[0] = T[0] = T[0] + 128, ops[1] = 128; // Add TEMPVALUE0, 128
+                    }
+                    ops[0] = entity->frame, ops[1] = FX_INK, ops[2] = T[0], ops[3] = T[1]; // DrawSpriteScreenFX OBJECTFRAME, 3, ...
+                    spriteFrame = &scriptFrames[scriptInfo->frameListOffset + ops[0]];
+                    PS1OpDrawSpriteInk(scriptInfo, entity, spriteFrame, T[0], T[1]);
+                }
+                scriptCodePtr = B + 148; // its End
+                break;
+            }
+            case FUNC_PS1WATERPALETTE: {
+                // Tidal Tempest's BGEffects draw sub (RS020-RS029: the water's deformation offsets and the palette split at
+                // the water line, every frame, docs/43 C2). tools/scripts/patch_bytecode.py checks the whole sub (17
+                // instructions, 98 words) and swaps only its first opcode (Inc OBJECTVALUE0) for this one. The same sub
+                // natively, statement by statement (byte-wide deformation offsets as the VM writes them back, jump-stack
+                // slots, temp values and operand registers as it leaves them).
+                opcodeSize = 0;
+                int B      = scriptCodePtr - 4; // this instruction (Inc's layout: 1 + 3 words)
+                int *js    = &jumpTableStack[jumpTableStackPos];
+                int *v     = entity->values;
+                int *ops   = scriptEng.operands;
+                int *T     = scriptEng.tempValue;
+                ops[0] = ++v[0];                                  // Inc OBJECTVALUE0
+                ops[0] = 0, ops[1] = v[0], ops[2] = 1, js[1] = 0; // IfGreater 0, OBJECTVALUE0, 1
+                if (v[0] > 1) {
+                    ops[0] = stageLayouts[0].deformationOffsetW + 1; // Inc TILELAYERDEFORMATIONOFFSETW[0]
+                    stageLayouts[0].deformationOffsetW = ops[0] & 0xFF;
+                    ops[0] = stageLayouts[2].deformationOffsetW + 1; // Inc TILELAYERDEFORMATIONOFFSETW[2]
+                    stageLayouts[2].deformationOffsetW = ops[0] & 0xFF;
+                    ops[0] = ops[1] = v[0] = 0;                     // Equal OBJECTVALUE0, 0
+                }
+                ops[0] = ops[1] = T[0] = waterLevel;                          // Equal TEMPVALUE0, STAGEWATERLEVEL
+                ops[0] = T[0] = T[0] - yScrollOffset, ops[1] = yScrollOffset; // Sub TEMPVALUE0, SCREENYOFFSET
+                ops[0] = 2, ops[1] = T[0], ops[2] = 0, js[1] = 2;              // IfLower 2, TEMPVALUE0, 0
+                if (T[0] < 0)
+                    ops[0] = ops[1] = T[0] = 0;
+                ops[0] = 4, ops[1] = T[0], ops[2] = SCREEN_YSIZE, js[1] = 4;   // IfGreater 4, TEMPVALUE0, SCREENYSIZE
+                if (T[0] > SCREEN_YSIZE)
+                    ops[0] = ops[1] = T[0] = SCREEN_YSIZE;
+                ops[0] = objectEntityList[19].values[1], ops[1] = 0, ops[2] = T[0]; // SetActivePalette OBJECTVALUE1[19], 0, T0
+                SetActivePalette(ops[0], ops[1], ops[2]);
+                ops[0] = 7, ops[1] = T[0], ops[2] = SCREEN_YSIZE;              // SetActivePalette 7, TEMPVALUE0, SCREENYSIZE
+                SetActivePalette(ops[0], ops[1], ops[2]);
+                scriptCodePtr = B + 97; // its End
                 break;
             }
             case FUNC_PS1UFOVIEW: {

@@ -3,6 +3,24 @@
 Updates to the Sonic CD PS1 ISO Builder, newest first. To get an update, rebuild your disc image with the new
 version of the builder (same steps as in the [README](README.md)).
 
+## Faster title screen and acts (October 2026)
+
+- **The title screen keeps up:** the 3D title (Sonic over Little Planet) took about 1.07 frames of time per frame in
+  DuckStation; it now runs at full speed (1.00). Faces of the planet that are entirely off screen are no longer sent to
+  the GPU, and the lookup behind its textures is faster.
+- **Every act is a little faster** (about 1-4 % less CPU time a frame): the HUD, the rings' touch check and, in
+  Tidal Tempest, the water and its palette effect now run as native code instead of the game's script.
+- **Tidal Tempest 1** (all four time periods), the act that ran below full speed, needs about 11 fewer of the
+  frame's 262 scanlines of CPU time (about 4 %).
+- **Only controller port 1 is read:** the game uses one controller; port 2 was polled too and, when empty, its time-out
+  was waited out every frame.
+- **Flipped level tiles as mirrored sprites:** where the console's GPU can mirror a sprite (every PSone has such a GPU),
+  flipped tiles are drawn as smaller mirrored sprites instead of reversed quads. A self-test at boot checks it and keeps
+  the previous way elsewhere, including emulators that don't mirror sprites. On those GPUs this saves Tidal Tempest 1
+  about 11 more scanlines a frame (measured in DuckStation with the path forced; not yet measured on a console).
+- The game looks and plays the same: each change was checked frame by frame against the previous build.
+- The image's SHA-256 changes (the new value is in the README's Output section).
+
 ## The disc's executable is named after the game (October 2026)
 
 - The disc now boots **`SONICCD.EXE`** instead of `PSX.EXE` (the `BOOT` line of `SYSTEM.CNF`).

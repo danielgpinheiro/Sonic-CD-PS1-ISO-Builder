@@ -63,7 +63,7 @@ Every update is listed in [CHANGELOG.md](CHANGELOG.md). Latest (October 2026): t
 
 Built from the Steam files **without** a license file and with the tool versions listed under
 [Requirements](#requirements), the English image is
-`SonicCD-PS1-EN.bin` SHA-256 `be5fcca0232f2041ff7508a7d00d73a098981d2724f5c3e72a55175c72db0c92`.
+`SonicCD-PS1-EN.bin` SHA-256 `a260278562bef4d1572b3578cdbb95fc3d9211e9ccd84be65cfe8ca965987b63`.
 Other versions of FFmpeg or psxavenc may encode the music and videos slightly differently, which changes
 the hash but not the game. With a license file the license sectors differ, so the hash does too.
 
@@ -89,7 +89,8 @@ the license sectors, the file index, and every file against its source.
 - No online features: leaderboards and achievements are hidden.
 - Help & Options has no *How to play* or *Controls* entries (on PC they open Windows dialogs).
 - No dev menu, settings file or mods from the PC version.
-- A few busy moments still slow down a little, mostly in Tidal Tempest's first act (about 90 % of full speed there).
+- A few busy moments still slow down a little, mostly in Tidal Tempest's first act (about 93 % of full speed there in
+  emulators).
   The PS1 draws every frame instead of skipping some.
 - Tested in emulators (PCSX-Redux, including boot through a retail NTSC-U BIOS, and DuckStation) and on a PSone
   from a CD-R (see [Playing it](#playing-it)); other consoles not yet.

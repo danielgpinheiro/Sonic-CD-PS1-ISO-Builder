@@ -23,6 +23,11 @@ version of the builder (same steps as in the [README](README.md)).
   Both were sprites far away from the screen being drawn on it: the PS1's GPU wraps coordinates about 2,000 pixels
   out. The game now skips any sprite that is off screen, as the PC version does.
 
+## Videos show their picture in PCSX-ReARMed (October 2026)
+
+- In RetroArch's PCSX-ReARMed the videos showed a flat gray picture while their audio played. They now show the
+  picture from the first frame. Real consoles and the other emulators already played them and are not affected.
+
 ## Time Attack and Visual Mode open, JP vocal videos (October 2026)
 
 - **Time Attack's seven rounds are open from the start**, and **Visual Mode** (Extras: watch the opening, the endings

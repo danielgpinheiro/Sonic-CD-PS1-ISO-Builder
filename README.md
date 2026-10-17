@@ -91,8 +91,8 @@ the license sectors, the file index, and every file against its source.
 - No dev menu, settings file or mods from the PC version.
 - A few busy moments still slow down a little, mostly in Tidal Tempest's first act (about 90 % of full speed there).
   The PS1 draws every frame instead of skipping some.
-- Tested in emulators only (PCSX-Redux, including boot through a retail NTSC-U BIOS); not yet on a real
-  console.
+- Tested in emulators (PCSX-Redux, including boot through a retail NTSC-U BIOS, and DuckStation) and on a PSone
+  from a CD-R (see [Playing it](#playing-it)); other consoles not yet.
 
 ## Compromises to make this work
 
@@ -172,6 +172,11 @@ checked instruction by instruction):
   the PC one, whose entries open Windows dialogs.
 - Two loops the special stages run every frame in script (sorting the objects by depth; stage 5's
   background ripple) run natively in the executable, with identical results.
+- More busy loops run natively the same way, with identical results: Palmtree Panic's parallax ramp, the
+  credits' text, the special stages' view, the save of the act's objects at every time travel, the title screen's
+  water, and Tidal Tempest's air bubbles.
+- Time Attack's seven rounds and special stages, Visual Mode and D.A. Garden open from the start (their unlock
+  thresholds are set so they are always met). Sound Test and Stage Select keep their original conditions.
 
 ## License & credits
 

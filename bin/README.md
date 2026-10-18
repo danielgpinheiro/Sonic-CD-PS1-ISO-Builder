@@ -3,8 +3,8 @@
 The PlayStation executable (PS-X EXE, 415744 bytes) that `build_iso.py` puts on the disc as `SONICCD.EXE`:
 Retro Engine v3 (RSDKv3 decompilation) ported to the PS1 with psyqo.
 
-- Built from the RSDKv3-ps1 port at commit `99e1063` (2026-10-17), natural boot (`make`), retail 2 MB RAM.
-- SHA-256 `8a18280f25040be66ee9b113132521943118801ab4153b593776339180979a6c` (also in `SHA256SUMS`).
+- Built from the RSDKv3-ps1 port at commit `691593b` (2026-10-18), natural boot (`make`), retail 2 MB RAM.
+- SHA-256 `d852e44d1d0ec41edd4dd76835ab9c64092afae95e76373b35849a75653ba4f5` (also in `SHA256SUMS`).
 - One executable for both languages: it reads the disc's language (`Data/Game/PS1Language.bin`, written by
   the builder's `--lang`).
 - It reads the converted assets from the disc (`Data/...`); the converters in `../builder/` must match this

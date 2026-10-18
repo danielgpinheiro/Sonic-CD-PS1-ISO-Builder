@@ -3,6 +3,19 @@
 Updates to the Sonic CD PS1 ISO Builder, newest first. To get an update, rebuild your disc image with the new
 version of the builder (same steps as in the [README](README.md)).
 
+## Memory fix: no freeze at Quartz Quadrant's time warp (October 2026)
+
+- **Fixed a freeze that could happen while time-traveling** (found in Quartz Quadrant 1 Present, warping to the Bad
+  Future): the game's memory for loading could be placed where the processor keeps its working data (the stack), and
+  the load then corrupted the game's memory list and froze. Whether it happened depended on what had been loaded
+  before, so most playthroughs never hit it.
+- The game now keeps that working data in a separate, fixed area, so loads can no longer run into it. When memory is
+  tight, a load now falls back to slower reads instead of corrupting memory.
+- This uses 16 KB of the console's 2 MB RAM; the port's memory checks (zones, special stages, loads, videos) still pass.
+- Checked with the port's automated tests in PCSX-Redux and DuckStation, including a boot through a retail NTSC-U BIOS.
+  Not yet tested on a console.
+- The image's SHA-256 changes (the new value is in the README's Output section).
+
 ## Faster title screen and acts (October 2026)
 
 - **The title screen keeps up:** the 3D title (Sonic over Little Planet) took about 1.07 frames of time per frame in

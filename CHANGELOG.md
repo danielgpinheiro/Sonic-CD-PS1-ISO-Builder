@@ -3,6 +3,19 @@
 Updates to the Sonic CD PS1 ISO Builder, newest first. To get an update, rebuild your disc image with the new
 version of the builder (same steps as in the [README](README.md)).
 
+## Rotated and mirrored sprites: no stray lines at their edges (October 2026)
+
+- **No more stray lines next to Sonic:** a thin line (often white or yellow) could appear along one edge of Sonic's
+  sprite when he faced left, ran through loops and quarter pipes, or was upside down. It came from the pixels just
+  outside his picture in the console's texture memory. Rotated and mirrored sprites now stay inside their own picture.
+  When Sonic faces left without turning, he is now drawn as an exact mirror image. Before, he was shifted by one
+  column, and the outside column showed at his edge.
+- **Steadier rotated sprites:** the picture of a rotated sprite no longer bends slightly along its diagonal (it moved
+  with every angle).
+- Checked for every frame of Sonic's, Tails's and Metal Sonic's animations at every angle, facing left and right, with
+  the port's automated tests, and on screen at 32 angles in both directions. Not yet tested on a console.
+- The image's SHA-256 changes (the new value is in the README's Output section).
+
 ## Memory fix: no freeze at Quartz Quadrant's time warp (October 2026)
 
 - **Fixed a freeze that could happen while time-traveling** (found in Quartz Quadrant 1 Present, warping to the Bad

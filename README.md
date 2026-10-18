@@ -29,8 +29,8 @@ uses directly:
 
 ## What's new
 
-Every update is listed in [CHANGELOG.md](CHANGELOG.md). Latest (October 2026): a memory fix for a freeze that could
-happen while time-traveling (seen at Quartz Quadrant 1's warp to the Bad Future).
+Every update is listed in [CHANGELOG.md](CHANGELOG.md). Latest (October 2026): no more stray lines along Sonic's sprite
+when he faces left, runs through loops or is upside down.
 
 ## Usage
 
@@ -63,7 +63,7 @@ happen while time-traveling (seen at Quartz Quadrant 1's warp to the Bad Future)
 
 Built from the Steam files **without** a license file and with the tool versions listed under
 [Requirements](#requirements), the English image is
-`SonicCD-PS1-EN.bin` SHA-256 `6e2fb09c036ec414300393bf60df38f058318cc1a183bfc0ea1d9bc2c415e2d5`.
+`SonicCD-PS1-EN.bin` SHA-256 `9565135ac4a03b58a7eccf49f494aa66c072ed90fe582364cd6d079a3ac5a8c2`.
 Other versions of FFmpeg or psxavenc may encode the music and videos slightly differently, which changes
 the hash but not the game. With a license file the license sectors differ, so the hash does too.
 

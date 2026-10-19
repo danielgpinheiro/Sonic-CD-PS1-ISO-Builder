@@ -31,6 +31,13 @@ known after mastering: mkpsxiso runs with a zero-filled index of the final size,
 the index is written, and mkpsxiso runs again (same sizes and order = same layout; checked by walking
 the second image and reading the index back).
 
+Version stamp: VERSION.TXT at the root (right after the index, so the boot read needs no seek) holds the build's git
+commit, written fresh on every run by tools/gen_version.py on this repository (`a1b2c3d4`, `-dirty`); the game draws it
+on the title screen (ps1/version_stamp.cpp). Where the script finds no repository of its own (the public builder, the
+regression suite's shadow copies) a VERSION.TXT next to the EXE is used if there is one (the builder's bin/VERSION.TXT,
+written by tools/export_builder.sh: the port commit of the prebuilt EXE), else `unknown`. PS1_VERSION_FILE=path takes
+that file instead, PS1_VERSION_FILE=none leaves VERSION.TXT off the disc (the game then shows `unknown`).
+
 Usage: build_disc.py [ISO_ROOT] [EXE] [LICENSE|none] [OUT_PREFIX]
   LICENSE none = no license data (the disc boots in emulators, on ODEs and modded consoles only)
   defaults: build/iso rsdkv3.ps-exe ../LICENSE.DAT build/game
@@ -94,6 +101,34 @@ def layout(iso_root):
 
 
 IDX_NAME = 'PS1FILES.IDX'
+VERSION_NAME = 'VERSION.TXT'
+GEN_VERSION = os.path.join(HERE, '..', 'gen_version.py')
+
+
+def write_version(path, exe):
+    """VERSION.TXT for this disc (see the module doc). Returns the version string, or None (left off the disc)."""
+    src = os.environ.get('PS1_VERSION_FILE')
+    if src and src.lower() == 'none':
+        return None
+    if not src:
+        subprocess.run([sys.executable, GEN_VERSION, path, REPO], check=True, stdout=subprocess.DEVNULL)
+        side = os.path.join(os.path.dirname(exe), VERSION_NAME)
+        if open(path, 'rb').read() == b'unknown\n' and os.path.isfile(side):
+            src = side
+    if src:
+        with open(src, 'rb') as f:
+            data = f.read()
+        if not version_ok(data):
+            sys.exit('ERROR: %s is not a version line (one ASCII line of at most 16 characters)' % src)
+        open(path, 'wb').write(data)
+    return open(path, 'rb').read().decode('ascii').strip()
+
+
+def version_ok(data):
+    """One line of 1..16 characters from 0-9 a-z A-Z - . + _, newline terminated (tools/gen_version.py)."""
+    line = data[:-1]
+    return data.endswith(b'\n') and 0 < len(line) <= 16 and all(
+        c in b'0123456789abcdefghijklmnopqrstuvwxyzABCDEFGHIJKLMNOPQRSTUVWXYZ-.+_' for c in line)
 
 
 def path_hash(path):
@@ -188,6 +223,11 @@ def main():
     idx = os.path.join(work, IDX_NAME)
     open(idx, 'wb').write(bytes(16 + 12 * len(files)))  # placeholder: final size, LBAs after mastering
     tree.append('\t\t\t<file name="%s" source=%s date="%s"/>' % (IDX_NAME, quoteattr(idx), DISC_DATE))
+    ver = os.path.join(work, VERSION_NAME)
+    version = write_version(ver, exe)
+    if version is not None:
+        tree.append('\t\t\t<file name="%s" source=%s date="%s"/>' % (VERSION_NAME, quoteattr(ver), DISC_DATE))
+    print('version: %s' % (version if version is not None else '(no %s on the disc)' % VERSION_NAME), flush=True)
     left_out = [f for f in disc_files(iso_root) if excluded(f)]
     left_bytes = sum(os.path.getsize(os.path.join(iso_root, f)) for f in left_out)
     for rel in files:
@@ -224,9 +264,10 @@ def main():
         sys.exit('ERROR: %s on the disc differs from the table' % IDX_NAME)
     size = os.path.getsize(out + '.bin')
     print('disc %s.bin/.cue: %.1f MB (%d sectors) | files: %s (%d in load order, indexed) | left out %d source files '
-          '(%.1f MB) | license %s' % (
+          '(%.1f MB) | license %s | version %s' % (
         out, size / 1048576, size // 2352, ', '.join('%s %d' % kv for kv in sorted(counts.items())), n_ordered,
-        len(left_out), left_bytes / 1048576, os.path.basename(lic) if lic else 'none (emulators / modded consoles only)'))
+        len(left_out), left_bytes / 1048576, os.path.basename(lic) if lic else 'none (emulators / modded consoles only)',
+        version or 'none'))
 
 
 if __name__ == '__main__':

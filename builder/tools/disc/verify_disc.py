@@ -12,7 +12,8 @@ Sector format and codes from psx-spx "CDROM Sector Encoding" (cdromformat.md):
 - ISO9660: every file equals its source (build/iso, SYSTEM.CNF, rsdkv3.ps-exe); mixed files
   (CD-XA/STR) compared sector by sector as 2336-byte records (sub-header + data; mkpsxiso fills in
   the EDC/ECC the encoder leaves zero); no source-only file
-  (build_disc.SOURCE_ONLY) on the disc; SYSTEM.CNF boots cdrom:\\EXE_NAME;1 (build_disc.EXE_NAME); EXE_NAME is a PS-X EXE.
+  (build_disc.SOURCE_ONLY) on the disc; SYSTEM.CNF boots cdrom:\\EXE_NAME;1 (build_disc.EXE_NAME); EXE_NAME is a PS-X EXE;
+  VERSION.TXT, when present, is one version line (build_disc.version_ok).
 
 Usage: verify_disc.py [BIN] [ISO_ROOT] [EXE] [LICENSE|none]
   defaults: build/game.bin build/iso rsdkv3.ps-exe ../LICENSE.DAT
@@ -177,6 +178,7 @@ def main():
     walk(struct.unpack_from('<I', pvd, 158)[0], struct.unpack_from('<I', pvd, 166)[0], '')
     src_files = {f.lower(): f for f in build_disc.disc_files(iso_root)}
     compared = 0
+    version = 'none'
     for name, el, sz in files:
         if build_disc.excluded(name):
             err('source-only file on the disc: %s' % name)
@@ -186,6 +188,12 @@ def main():
             if table != want:
                 err('%s does not match the directory tree' % name)
             compared += 1
+            continue
+        if name.upper() == build_disc.VERSION_NAME:
+            data = user(el)[:sz]
+            if not build_disc.version_ok(data):
+                err('%s is not a version line: %r' % (name, data[:40]))
+            version = data.decode('ascii', 'replace').strip()
             continue
         if name.upper() == 'SYSTEM.CNF':
             cnf = user(el)[:sz]
@@ -220,10 +228,10 @@ def main():
         err('%s is not on the disc' % f)
     print('%s: %d sectors (%.1f MB) | Form 1 %d (EDC + ECC, %d checked) | Form 2 %d with EDC, %d without' % (
         os.path.relpath(binp, REPO), n, len(img) / 1048576, forms[0], ecc_checked, forms[1], forms[2]))
-    print('license: %s | files: %d on disc, %d compared with their sources' % (
+    print('license: %s | files: %d on disc, %d compared with their sources | version %s' % (
         'none (emulators / modded consoles only)' if no_lic else
         ('sectors 0..15 = %s (%s)' % (os.path.basename(lic), ' '.join(lic_text)) if lic_ok else 'MISMATCH'),
-        len(files), compared))
+        len(files), compared, version))
     for e in errors:
         print('ERROR:', e)
     print('OK' if not errors else 'FAILED (%d+ errors)' % len(errors))

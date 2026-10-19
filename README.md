@@ -29,8 +29,8 @@ uses directly:
 
 ## What's new
 
-Every update is listed in [CHANGELOG.md](CHANGELOG.md). Latest (October 2026): no more stray lines along Sonic's sprite
-when he faces left, runs through loops or is upside down.
+Every update is listed in [CHANGELOG.md](CHANGELOG.md). Latest (October 2026): the title screen shows the build
+(`v 88949dae`, bottom-left), so you can tell which version you are playing.
 
 ## Usage
 
@@ -63,7 +63,7 @@ when he faces left, runs through loops or is upside down.
 
 Built from the Steam files **without** a license file and with the tool versions listed under
 [Requirements](#requirements), the English image is
-`SonicCD-PS1-EN.bin` SHA-256 `9565135ac4a03b58a7eccf49f494aa66c072ed90fe582364cd6d079a3ac5a8c2`.
+`SonicCD-PS1-EN.bin` SHA-256 `44723960fabb98330f0008e2cbed14d2cd0ceb19ea69076fdd69cc7336b36b66`.
 Other versions of FFmpeg or psxavenc may encode the music and videos slightly differently, which changes
 the hash but not the game. With a license file the license sectors differ, so the hash does too.
 

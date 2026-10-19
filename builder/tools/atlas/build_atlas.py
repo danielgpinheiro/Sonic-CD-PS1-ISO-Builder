@@ -62,7 +62,7 @@ FMV_XY = (320, 256)
 # moves to slot k by a whole-column offset. 320 texels wide (256 in the pair + 64 in the lone column).
 SLOTS = [((13, 14), 15, 1), ((5, 6), 7, 1)]
 # 4-bit CLUT slots (16 halfwords): row 240 right of the master CLUT, rows 241-255 and 496-503
-# (rows 504-511 hold the runtime INK_BLEND CLUTs, Drawing.cpp PS1_BLEND_*)
+# (rows 504-511, x 0-47: the title's build stamp texture + CLUT, ps1/version_stamp.hh)
 CLUT_SLOTS = [(x, 240) for x in range(256, 320, 16)] + \
              [(x, y) for y in list(range(241, 256)) + list(range(496, 504)) for x in range(0, 320, 16)]
 

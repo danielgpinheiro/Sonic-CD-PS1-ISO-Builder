@@ -3,6 +3,16 @@
 Updates to the Sonic CD PS1 ISO Builder, newest first. To get an update, rebuild your disc image with the new
 version of the builder (same steps as in the [README](README.md)).
 
+## Sonic's sprite no longer shifts while looking up facing left (October 2026)
+
+- **Looking up while facing left, part of Sonic's sprite (his leg) moved between the animation's frames.** One frame
+  sat at the left edge of a texture page in video memory, and a mirrored sprite there was drawn from one column too
+  few (one column doubled, the rest shifted by a pixel). The disc builder now moves the player's sprites off that edge
+  into free room, without moving anything else; a few may still sit there in crowded stages.
+- The title screen shows the new build, `v 6e0098f4` (the RSDKv3-ps1 port's commit `6e0098f`).
+- Checked with the port's automated tests in PCSX-Redux and DuckStation (a new test checks the look-up frames in every
+  stage). The image's SHA-256 changes (the new value is in the README's Output section).
+
 ## Flip-bit sprites on newer consoles (October 2026)
 
 - **On consoles with the newer GPU (every PSone, most later PlayStations), mirrored sprites drawn at their own size

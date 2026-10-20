@@ -360,6 +360,53 @@ def build_stage(data, manifest, name, cols_limit=None, virtual=0, stream=0):
                     bins.append(b)
                     spot = b.place(w, h)
                 c['tpx'], c['tpy'], (c['u'], c['v']) = b.tpx, b.tpy, spot
+        # CD-095: a quad's texcoords are bytes and a mirrored piece's U edges run one texel outside it (u + w - 1 .. u - 1:
+        # ps1/sprite_quad.hh PS1RectUV, PS1AffineUV at right angles); at u = 0 the edge was clamped to 0 (render.cpp
+        # clampUV) and the quad drew w pixels from w - 1 texels, one column doubled mid-sprite (Sonic's look-up frame
+        # facing left). A players' piece (always drawn mirrored and turned) packed at u = 0 moves one texel right where
+        # the column beside it is free: nothing else moves, so the pages, their lines and the BG strips' room below the
+        # atlas stay as packed (a gutter in the packer reflowed the layout: full tier +0.4-2.8 CPU hblanks).
+        def page(b):
+            return [o for o in todo_clusters if o.get('tpx') == b.tpx and o.get('tpy') == b.tpy and o['depth'] == b.depth]
+
+        def free_spot(b, c, w, h, grow=False):
+            """The first w x h spot of page b at u >= 1 above its last used line (grow: anywhere on the page), c left out
+            (None: none)."""
+            others = [o for o in page(b) if o is not c]
+            if w >= b.width or not others:
+                return None
+            lines = PAGE if grow else max(o['v'] + o['rect'][3] for o in others)
+            if h > lines:
+                return None
+            occ = np.zeros((PAGE + 1, b.width + 1), np.int32)
+            for o in others:
+                occ[o['v'] + 1:o['v'] + o['rect'][3] + 1, o['u'] + 1:o['u'] + o['rect'][2] + 1] = 1
+            sat = occ.cumsum(0).cumsum(1)
+            area = sat[h:lines + 1, w + 1:] - sat[:lines + 1 - h, w + 1:] - sat[h:lines + 1, 1:b.width + 1 - w] \
+                + sat[:lines + 1 - h, 1:b.width + 1 - w]  # [v, u - 1]: the w x h rect at (u, v), u >= 1
+            vs, us = np.nonzero(area == 0)
+            if not len(vs):
+                return None
+            k = np.lexsort((us, vs))[0]
+            return int(us[k]) + 1, int(vs[k])
+
+        for b in bins:
+            for c in page(b):
+                w, h = c['rect'][2], c['rect'][3]
+                if c['u'] or not c['sheet'].lower().startswith('players/'):
+                    continue
+                # its own page first (one texel right when the column beside it is free), then any page of its depth;
+                # last, below a page's last line (that page's lines grow: only where nothing else had room)
+                pages = [b] + [x for x in bins if x is not b and x.depth == b.depth and w < x.width]
+                for grow in (False, True):
+                    spot = None
+                    for b2 in pages:
+                        spot = free_spot(b2, c, w, h, grow)
+                        if spot:
+                            c['tpx'], c['tpy'], (c['u'], c['v']) = b2.tpx, b2.tpy, spot
+                            break
+                    if spot:
+                        break
         return bins
 
     bins = pack([c for c in clusters if c['pic'] is None], free, pairs, '')

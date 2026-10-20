@@ -29,8 +29,9 @@ uses directly:
 
 ## What's new
 
-Every update is listed in [CHANGELOG.md](CHANGELOG.md). Latest (October 2026): the title screen shows the build
-(`v 88949dae`, bottom-left), so you can tell which version you are playing.
+Every update is listed in [CHANGELOG.md](CHANGELOG.md). Latest (October 2026): mirrored sprites use the GPU's flip
+feature on consoles that have it, as mirrored level tiles already did (checked at start-up; the earliest consoles draw
+as before), build `v e6c25db3`.
 
 ## Usage
 
@@ -63,7 +64,7 @@ Every update is listed in [CHANGELOG.md](CHANGELOG.md). Latest (October 2026): t
 
 Built from the Steam files **without** a license file and with the tool versions listed under
 [Requirements](#requirements), the English image is
-`SonicCD-PS1-EN.bin` SHA-256 `44723960fabb98330f0008e2cbed14d2cd0ceb19ea69076fdd69cc7336b36b66`.
+`SonicCD-PS1-EN.bin` SHA-256 `5621207f28e98284c74a1300aaf594a2940dd090481c96616ac30b5894cd6aa4`.
 Other versions of FFmpeg or psxavenc may encode the music and videos slightly differently, which changes
 the hash but not the game. With a license file the license sectors differ, so the hash does too.
 

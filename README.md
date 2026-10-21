@@ -29,9 +29,8 @@ uses directly:
 
 ## What's new
 
-Every update is listed in [CHANGELOG.md](CHANGELOG.md). Latest (October 2026): mirrored sprites use the GPU's flip
-feature on consoles that have it, as mirrored level tiles already did (checked at start-up; the earliest consoles draw
-as before), build `v e6c25db3`.
+Every update is listed in [CHANGELOG.md](CHANGELOG.md). Latest (October 2026): the loading icon waits while a stage
+load copies graphics to video memory (a protection against a freeze found in the Sonic 1 port), build `v ff4d78c5`.
 
 ## Usage
 
@@ -64,7 +63,7 @@ as before), build `v e6c25db3`.
 
 Built from the Steam files **without** a license file and with the tool versions listed under
 [Requirements](#requirements), the English image is
-`SonicCD-PS1-EN.bin` SHA-256 `3dcfe4b51ba91bd46d518429582d96192c24cd49555469bcfbc5888287151f2c`.
+`SonicCD-PS1-EN.bin` SHA-256 `923058d04d92ef2da617e1f7d660882cf200efaa851ace6079a58f034168b1e1`.
 Other versions of FFmpeg or psxavenc may encode the music and videos slightly differently, which changes
 the hash but not the game. With a license file the license sectors differ, so the hash does too.
 

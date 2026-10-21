@@ -3,6 +3,15 @@
 Updates to the Sonic CD PS1 ISO Builder, newest first. To get an update, rebuild your disc image with the new
 version of the builder (same steps as in the [README](README.md)).
 
+## Loading icon protection (October 2026)
+
+- **The loading icon now waits while a stage load is copying graphics into video memory.** Two copies at the same time
+  stop the game; in the Sonic 1 port this froze the end credits on a black screen in the PCSX-ReARMed emulator. It never
+  happened in Sonic CD, but Sonic CD had the same weak spot, so it gets the same fix. Nothing else changes.
+- The title screen shows the new build, `v ff4d78c5` (the RSDKv3-ps1 port's commit `ff4d78c`).
+- Checked with the port's automated tests in PCSX-Redux and DuckStation. The image's SHA-256 changes (the new value is
+  in the README's Output section).
+
 ## Sonic's sprite no longer shifts while looking up facing left (October 2026)
 
 - **Looking up while facing left, part of Sonic's sprite (his leg) moved between the animation's frames.** One frame

@@ -1,6 +1,6 @@
 #!/usr/bin/env python3
 """Sonic CD's videos (Theora .ogv, 640x368 @ 30 fps, two Vorbis tracks: JP and US soundtrack) -> PS1
-MDEC STR streams with CD-XA audio (docs/28 phase 6.1). Golden rule: all conversion here; the PS1 only
+MDEC STR streams with CD-XA audio (docs/ports/sonic-cd/28 phase 6.1). Golden rule: all conversion here; the PS1 only
 Huffman-decodes (VLC) and runs the MDEC, the drive decodes the audio.
 
 One STR per video carries **both** soundtracks (two copies of the video would not fit the disc: ~200 MB

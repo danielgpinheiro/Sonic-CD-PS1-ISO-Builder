@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-"""Build-time CD-XA music for the RSDKv3 (Sonic CD) PS1 port (docs/28 phase 5.2):
+"""Build-time CD-XA music for the RSDKv3 (Sonic CD) PS1 port (docs/ports/sonic-cd/28 phase 5.2):
 Data/Music/**/*.ogg (68 tracks: US + JP soundtracks + the past tracks) -> Data/Music/Music.xa + Music.bin.
 
 Format (as the RSDKv2 port): XA-ADPCM 37.8 kHz stereo 4-bit, 18.75 sectors/s per channel; at 2x CD speed

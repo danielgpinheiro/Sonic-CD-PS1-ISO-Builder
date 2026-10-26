@@ -1,5 +1,5 @@
 #!/usr/bin/python3
-"""PS1 edits to Sonic CD's script bytecode, applied to the disc tree at build time (docs/28, user test
+"""PS1 edits to Sonic CD's script bytecode, applied to the disc tree at build time (docs/ports/sonic-cd/28, user test
 fixes 2026-09-25). The engine runs the scripts unchanged; only their data changes here.
 
 Help & Options (user decision 2026-09-25: no HOW TO PLAY, no CONTROLS). The PC build's HELP & OPTIONS
@@ -13,7 +13,7 @@ PS1 the button opens `Options Menu`, without INSTRUCTIONS:
     (OBJECTVALUE1: music stop, the entry's action, the stage it loads) see entry k + 1 of the original;
   - its entry labels (sprite frames 10-13, highlighted 14-17) move up one, so entry k shows label k + 1;
   - draw: the 4th entry slot is moved off screen (its `Add OBJECTYPOS, 40` -> -1000).
-Special stages (docs/28 special-stage speed): Special Setup's draw sub, a bubble sort of draw list 3 in
+Special stages (docs/ports/sonic-cd/28 special-stage speed): Special Setup's draw sub, a bubble sort of draw list 3 in
 script, becomes one PS1SortDrawList instruction (a PS1 engine opcode running the same loop natively); SS5's
 BGEffects deformation ramp loop becomes PS1DeformRamp; R11A's 3DRamp parallax ramp loop becomes PS1ParallaxRamp (only
 its WLower opcode changes: speed pass 2).
@@ -362,7 +362,7 @@ def patch_ss_ramp(data):
     return 'deformation ramp native in %s%s' % (', '.join(done) or '-', ' (already: %s)' % ' '.join(already) if already else '')
 
 
-# R11A's 3DRamp: a per-line parallax ramp loop run every frame (docs/28 speed pass 2, ~119 hblanks):
+# R11A's 3DRamp: a per-line parallax ramp loop run every frame (docs/ports/sonic-cd/28 speed pass 2, ~119 hblanks):
 #   WLower j, ARRAYPOS0, end / Equal T1, T0 / Mul T1, T2 / ShR T1, k / Add HPARALLAXSCROLLPOS[pos0], T1 / Inc ARRAYPOS0
 #   / Dec T2 / loop  ->  only the WLower opcode becomes PS1ParallaxRamp (RSDKv3/Script.cpp: the same loop natively; same
 # operands, the body left in place, so every instruction keeps its position). Found by its full instruction pattern
@@ -419,7 +419,7 @@ def patch_parallax_ramp(data):
     return 'parallax ramp native in %s%s' % (', '.join(done) or '-', ' (already: %s)' % ' '.join(already) if already else '')
 
 
-# The Credits' TextFont1-3 draw subs: a character-by-character text loop (docs/28 speed pass 2, ~800 hblanks a frame).
+# The Credits' TextFont1-3 draw subs: a character-by-character text loop (docs/ports/sonic-cd/28 speed pass 2, ~800 hblanks a frame).
 # Only the loop's WGreater opcode becomes PS1TextLoop (RSDKv3/Script.cpp runs the loop natively); the whole shape is
 # checked here: the instructions below, the switch's jump table (default right after the switch, exit after
 # endswitch, every case target either the default or a 'DrawSpriteXY k, TEMPVALUE2, OBJECTYPOS / break' body) and the
@@ -531,7 +531,7 @@ def patch_text_loops(data):
     return 'text loops native in %s%s' % (', '.join(done) or '-', ' (already: %s)' % ' '.join(already) if already else '')
 
 
-# The special stages' UFO-type objects: the floor-camera transform block in their main subs (docs/28 speed pass 2): only
+# The special stages' UFO-type objects: the floor-camera transform block in their main subs (docs/ports/sonic-cd/28 speed pass 2): only
 # its first opcode (Equal TEMPVALUE0, OBJECTXPOS) becomes PS1UfoView (RSDKv3/Script.cpp runs the 20 instructions
 # natively and continues after their 148 words). k: the object values receiving the result (k, k + 1).
 def ufo_view(k):
@@ -586,7 +586,7 @@ def patch_ufo_view(data):
 
 
 # Script function 46 (GS000), called by every time warp: its loop over objects 32-1055 recording which are gone in
-# SAVERAM 7168-8191 (docs/28 speed pass 2: ~10,000 VM instructions in one frame, a 9-vsync freeze). Only the loop's
+# SAVERAM 7168-8191 (docs/ports/sonic-cd/28 speed pass 2: ~10,000 VM instructions in one frame, a 9-vsync freeze). Only the loop's
 # WLower opcode becomes PS1SaveObjects (RSDKv3/Script.cpp: the same loop natively); the whole loop is checked here,
 # including the ifs' jump entries the engine reproduces (2-14) and the loop's own jump entries.
 def save_objects():
@@ -644,7 +644,7 @@ def patch_save_objects(data):
     return 'object save loop native in - (not found)'
 
 
-# The Title's Background draw sub: its water-strip loop (docs/28 speed pass 2). Only the WLower opcode becomes
+# The Title's Background draw sub: its water-strip loop (docs/ports/sonic-cd/28 speed pass 2). Only the WLower opcode becomes
 # PS1TitleWater (RSDKv3/Script.cpp); the whole loop is checked, including the IfGreater entry the engine writes (2).
 def title_water():
     A = lambda n: ('var', (n, 1, (1, 0)))  # OBJECTXPOS[pos0]
@@ -687,7 +687,7 @@ def patch_title_water(data):
     return 'Title water loop native in PS000.bin@%d' % at
 
 
-# Tidal Tempest's AirBubble main sub (R4x stages; docs/28 speed pass 2: 30-40 VM instructions per bubble a frame,
+# Tidal Tempest's AirBubble main sub (R4x stages; docs/ports/sonic-cd/28 speed pass 2: 30-40 VM instructions per bubble a frame,
 # ~17 hblanks in R41A). Only the first IfEqual opcode becomes PS1AirBubble (RSDKv3/Script.cpp: the same sub natively,
 # down to the jump stack slots and the operand registers it leaves); the whole sub is checked here, including the
 # global variables it compares the player's animation with and sets it to (79, 104, 80, 69).
@@ -753,7 +753,7 @@ def patch_air_bubble(data):
     return 'AirBubble main native in %s%s' % (', '.join(done) or '-', ' (already: %s)' % ' '.join(already) if already else '')
 
 
-# The HUD's draw sub (GS000, every act; docs/43 C2): only its first IfEqual opcode becomes PS1HudDraw (RSDKv3/Script.cpp:
+# The HUD's draw sub (GS000, every act; docs/perf/43 C2): only its first IfEqual opcode becomes PS1HudDraw (RSDKv3/Script.cpp:
 # the same sub natively). The whole sub is checked (84 instructions, 524 words) and its switch's jump-table entries
 # (cases 1-2, default and end, the case bodies) from the object's draw jump table.
 def hud_draw():
@@ -832,7 +832,7 @@ def patch_hud_draw(data):
     sys.exit('ERROR patch_bytecode: GS000 HUD draw not found')
 
 
-# The Ring's playerInteraction sub (GS000, every act; docs/43 C2): only its first IfNotEqual opcode becomes PS1RingTouch
+# The Ring's playerInteraction sub (GS000, every act; docs/perf/43 C2): only its first IfNotEqual opcode becomes PS1RingTouch
 # (RSDKv3/Script.cpp: the sub's head natively, the collect path left to the VM). The whole sub is checked.
 def ring_touch():
     I = lambda v: ('int', v)
@@ -886,7 +886,7 @@ def patch_ring_touch(data):
     sys.exit('ERROR patch_bytecode: GS000 Ring playerInteraction not found')
 
 
-# Tidal Tempest's Water draw sub (RS020-RS029; docs/43 C2): only its first Inc opcode becomes PS1WaterDraw (RSDKv3/Script.cpp:
+# Tidal Tempest's Water draw sub (RS020-RS029; docs/perf/43 C2): only its first Inc opcode becomes PS1WaterDraw (RSDKv3/Script.cpp:
 # the same sub natively). The whole sub is checked (20 instructions, 149 words).
 def water_draw():
     I = lambda v: ('int', v)
@@ -936,7 +936,7 @@ def patch_water_draw(data):
     return 'Water draw native in %s%s' % (', '.join(done) or '-', ' (already: %s)' % ' '.join(already) if already else '')
 
 
-# Tidal Tempest's BGEffects draw sub (RS020-RS029; docs/43 C2): only its first Inc opcode becomes PS1WaterPalette.
+# Tidal Tempest's BGEffects draw sub (RS020-RS029; docs/perf/43 C2): only its first Inc opcode becomes PS1WaterPalette.
 def water_palette():
     I = lambda v: ('int', v)
     L = lambda i: ('var', ('TILELAYERDEFORMATIONOFFSETW', 1, (0, i)))

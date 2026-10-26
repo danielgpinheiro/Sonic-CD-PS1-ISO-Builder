@@ -81,7 +81,7 @@ static void setDmaPriority(int dma, int priority) {
 void DecDCTReset(int mode) {
     // MDEC-in above MDEC-out, as the BIOS default DPCR (07654321h) that ps1-tests' MDEC tests ran with on
     // hardware. PSn00bSDK's 3/3 lets MDEC-out win the tie; on the PSone every MDEC-out DMA then timed out
-    // with the CPU starved (docs/28 appendix 12, part 2).
+    // with the CPU starved (docs/ports/sonic-cd/28 appendix 12, part 2).
     setDmaPriority(DMA_MDEC_IN, 1);
     setDmaPriority(DMA_MDEC_OUT, 2);
     DMA_CHCR(DMA_MDEC_IN)  = 0x00000201; // Stop DMA
@@ -179,7 +179,7 @@ int DecDCToutSync(int mode) {
 }
 
 /* ---------------------------------------------------------------------------
- * Port additions (docs/28 appendix 12, part 2): the MDEC without DMA, bounded waits, fault recovery.
+ * Port additions (docs/ports/sonic-cd/28 appendix 12, part 2): the MDEC without DMA, bounded waits, fault recovery.
  * PIO follows ps1-tests common/mdec.cpp, whose primitives ran on hardware: a command waits for "command
  * busy" to clear, a parameter word for "data-in FIFO full" to clear, a pixel word for "data-out FIFO
  * empty" to clear (psx-spx macroblockdecodermdec.md, MDEC1 status bits 29-31).

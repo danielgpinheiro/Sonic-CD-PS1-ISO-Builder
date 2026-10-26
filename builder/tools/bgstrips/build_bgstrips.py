@@ -1,5 +1,5 @@
 #!/usr/bin/python3
-"""Build-time BG line strips for the RSDKv3 (Sonic CD) PS1 tile renderer (docs/28 phase 3).
+"""Build-time BG line strips for the RSDKv3 (Sonic CD) PS1 tile renderer (docs/ports/sonic-cd/28 phase 3).
 
 From the RSDKv2 (Nexus) port's builder, adapted to v3 data. A BG tile layer is drawn per line
 (upstream DrawHLineScrollLayer): lines that share an X scroll form a band; with tiles a band costs
@@ -22,7 +22,7 @@ vParallax lists of 4-byte entries, per layer u8 xsize, ysize, type, u16 parallax
 RLE lineScroll (0xFF v n = v repeated n-1 times, 0xFF 0xFF ends), xsize*ysize u16 BE chunks),
 128x128Tiles.bin (3 bytes per chunk tile: plane bit 4, flip bits 2-3, index bits 0-1 + byte 1),
 Act*.bin (active layers + midpoint; acts may differ: union of their (layer, plane) keys), and the tile pixels from 16x16Tiles.vram (tools/tiles).
-Per player (the sprite atlases differ, docs/28 3.2): the free VRAM is what <Stage>.atl (Sonic) /
+Per player (the sprite atlases differ, docs/ports/sonic-cd/28 3.2): the free VRAM is what <Stage>.atl (Sonic) /
 <Stage>_t.atl (Tails) leaves, and the output is BGStrips.bin / BGStrips_t.bin.
 
 Output Data/Stages/<Stage>/BGStrips[_t].bin (little endian):

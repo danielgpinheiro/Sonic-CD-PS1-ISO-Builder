@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-"""Static scan of RSDKv3 (Sonic CD, BYTECODE_PC) script bytecode for PS1 sizing (docs/28).
+"""Static scan of RSDKv3 (Sonic CD, BYTECODE_PC) script bytecode for PS1 sizing (docs/ports/sonic-cd/28).
 
 Decodes Scripts/ByteCode/*.bin exactly as LoadBytecode does (RSDKv3/Script.cpp: u32 int count,
 then blocks: header byte, n = h & 0x7F values of 4 bytes if h >= 0x80 else 1 byte), then walks the

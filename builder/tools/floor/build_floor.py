@@ -1,5 +1,5 @@
 #!/usr/bin/python3
-"""Far-floor textures for Sonic CD's special stages (docs/28 phase 7): the 3D floor seen far away.
+"""Far-floor textures for Sonic CD's special stages (docs/ports/sonic-cd/28 phase 7): the 3D floor seen far away.
 
 The special stages draw their floor (layout layer 0, 32 x 32 chunks = 4096 x 4096 px) with upstream
 Draw3DSkyLayer / Draw3DFloorLayer: a perspective walk over the tiles per screen line. The PS1 renderer

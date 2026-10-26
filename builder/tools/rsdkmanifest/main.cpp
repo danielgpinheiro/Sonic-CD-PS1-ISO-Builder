@@ -1,5 +1,5 @@
 /*
- * rsdkmanifest — host-side sprite manifest for the RSDKv3 (Sonic CD) PS1 port (docs/28 phase 1).
+ * rsdkmanifest — host-side sprite manifest for the RSDKv3 (Sonic CD) PS1 port (docs/ports/sonic-cd/28 phase 1).
  *
  * Sonic CD ships its scripts as bytecode only, so the frames a stage can draw come from running
  * them: for every stage of the four GameConfig stage lists this tool loads the global + stage

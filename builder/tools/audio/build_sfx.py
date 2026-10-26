@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-"""Build-time SFX conversion for the RSDKv3 (Sonic CD) PS1 port (docs/28 phase 5.1):
+"""Build-time SFX conversion for the RSDKv3 (Sonic CD) PS1 port (docs/ports/sonic-cd/28 phase 5.1):
 Data/SoundFX/**/*.wav -> *.vag (SPU-ADPCM, psxavenc `-t vag`: 48-byte header with the rate at 0x10,
 data padded to 64 bytes, ends with a silent loop-trap block). The PS1 LoadSfx maps `X.wav` to `X.vag`.
 

@@ -1,5 +1,5 @@
 #!/usr/bin/python3
-"""Disassemble one object's subs from a Sonic CD bytecode file (debug aid, docs/28 phase 4).
+"""Disassemble one object's subs from a Sonic CD bytecode file (debug aid, docs/ports/sonic-cd/28 phase 4).
 
 Usage: bytecode_dis.py DATA_DIR FILE OBJECT_INDEX|fFUNCTION [GLOBALS]   (OBJECT_INDEX: 0-based within the
 file; GLOBALS = 1 if the stage loads GS000 first, so offsets are absolute after it)

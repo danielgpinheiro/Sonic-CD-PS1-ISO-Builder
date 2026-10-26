@@ -27,7 +27,7 @@ Output: <Data>/Sprites/Atlas/<Stage>.atl (little-endian):
   block  : u16 x, y, w, h (VRAM halfwords), u32 offset of w*h u16 at dataOffset + offset
 Every frame is decoded back from the atlas and compared with its GIF (must be exact).
 
-On-demand pictures (docs/28 phase 4, user decision 2026-09-24): a stage whose frames don't fit (the
+On-demand pictures (docs/ports/sonic-cd/28 phase 4, user decision 2026-09-24): a stage whose frames don't fit (the
 Secrets gallery's full-screen pictures) streams its largest frame groups (merged rects) instead of
 keeping them resident: each is a picture of <Stage>.pic, loaded by ps1/sprite_atlas into one of
 two VRAM slots (same shape, columns SLOTS) when a draw first needs it, least recently used slot
@@ -72,7 +72,7 @@ class AtlasError(Exception):
 
 
 LANG_TAGS = {'en': 'EN', 'jp': 'JP', 'fr': 'FR', 'de': 'DE', 'es': 'ES', 'it': 'IT'}
-LANG = 'en'  # --lang: the disc's language (docs/28 phase 4: one disc per language)
+LANG = 'en'  # --lang: the disc's language (docs/ports/sonic-cd/28 phase 4: one disc per language)
 
 
 def _data_path(data, path):
@@ -308,7 +308,7 @@ def build_stage(data, manifest, name, cols_limit=None, virtual=0, stream=0):
     vcols = [100 + i for i in range(virtual)]
     pairs = PAIRS + [(vcols[i], vcols[i + 1]) for i in range(0, len(vcols) - 1, 2)]
     free = [(c, py) for py in (0, 1) for c in COLUMNS + vcols]
-    # Special stages (docs/28 phase 7): a tile page their tile set leaves empty joins the atlas, last (page 3
+    # Special stages (docs/ports/sonic-cd/28 phase 7): a tile page their tile set leaves empty joins the atlas, last (page 3
     # is the far floor's): SS1's animated 3D background needs 4 more columns than the sprite area has.
     if re.match(r'SS\d+$', name):
         if last_tile(data, name) < 512:

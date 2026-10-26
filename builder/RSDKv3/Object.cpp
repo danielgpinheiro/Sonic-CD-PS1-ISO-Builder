@@ -66,7 +66,7 @@ void ProcessObjects()
 #if RETRO_PLATFORM == RETRO_PS1
         // A blank slot does nothing below (the priority switch only decides whether a typed object runs;
         // BOUNDS_DESTROY would blank it again): skipping it saves ~50 hblanks a frame over 1,056 slots.
-        // A run of blank slots is passed over by a scan of the type bytes (docs/28 speed pass 2: the loop's own
+        // A run of blank slots is passed over by a scan of the type bytes (docs/ports/sonic-cd/28 speed pass 2: the loop's own
         // step loads and stores the global objectLoop, 14 instructions a slot); objectLoop ends as the loop leaves it.
         if (entity->type == OBJ_TYPE_BLANKOBJECT) {
             const Entity *e = entity + 1, *end = &objectEntityList[ENTITY_COUNT];

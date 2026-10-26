@@ -499,7 +499,7 @@ const FunctionInfo functions[] = {
     FunctionInfo("HapticEffect", 4), // PS1: kept (a no-op) so the opcodes after it number as in the tools
 #endif
 #if RETRO_PLATFORM == RETRO_PS1
-    // PS1 extension, only in bytecode rewritten by tools/scripts/patch_bytecode.py (docs/28).
+    // PS1 extension, only in bytecode rewritten by tools/scripts/patch_bytecode.py (docs/ports/sonic-cd/28).
     FunctionInfo("PS1SortDrawList", 2),
     FunctionInfo("PS1DeformRamp", 4),
     FunctionInfo("PS1ParallaxRamp", 3),
@@ -1978,7 +1978,7 @@ void ParseScriptFile(char *scriptName, int scriptID)
 #endif
 
 #if RETRO_PLATFORM == RETRO_PS1
-// Direct operands (docs/28 speed pass 2). The VM decodes every variable operand twice per instruction (fetch, then
+// Direct operands (docs/ports/sonic-cd/28 speed pass 2). The VM decodes every variable operand twice per instruction (fetch, then
 // write-back): its kind, its array form, then a switch over ~200 variables. Most operands are plain storage: the
 // temp values, the check result, the array positions, a global with a constant index, or a field of the current
 // entity (or of the entity a constant away). After a bytecode load those operands are rewritten in place into a
@@ -2516,7 +2516,7 @@ volatile uint32_t g_ps1ScriptCalls = 0; // ProcessScript calls (SAMPLE builds)
 volatile uint32_t g_ps1ScriptOpdDirect = 0, g_ps1ScriptOpdVar = 0, g_ps1ScriptOpdConst = 0; // fetched operands (SAMPLE builds)
 volatile uint32_t g_ps1ScriptVarHist[VAR_MAX_CNT] = {}; // generic variable operands fetched, per variable (SAMPLE builds)
 #endif
-// DrawSpriteScreenFX's FX_INK case (the VM's opcode and the PS1WaterDraw native, docs/43 C2): frame `spriteFrame` of the
+// DrawSpriteScreenFX's FX_INK case (the VM's opcode and the PS1WaterDraw native, docs/perf/43 C2): frame `spriteFrame` of the
 // object's script at (x, y) with the entity's ink effect.
 static void PS1OpDrawSpriteInk(const ObjectScript *scriptInfo, const Entity *entity, const SpriteFrame *spriteFrame, int x, int y)
 {
@@ -2547,7 +2547,7 @@ static void PS1OpDrawSpriteInk(const ObjectScript *scriptInfo, const Entity *ent
             break;
     }
 }
-// DrawNumbers' opcode body (the VM's case FUNC_DRAWNUMBERS and the PS1HudDraw native, docs/43 C2): draws
+// DrawNumbers' opcode body (the VM's case FUNC_DRAWNUMBERS and the PS1HudDraw native, docs/perf/43 C2): draws
 // operands[3] with operands[4] digits from operands[1] leftwards; leaves the operand registers as the opcode does.
 static void PS1OpDrawNumbers(ObjectScript *scriptInfo)
 {
@@ -3313,7 +3313,7 @@ void ProcessScript(int scriptCodeStart, int jumpTableStart, byte scriptSub)
         }
 
 #if RETRO_PLATFORM == RETRO_PS1
-        // scriptInfo and player are computed where an opcode uses them (docs/28 speed pass 2: with entity, ~30
+        // scriptInfo and player are computed where an opcode uses them (docs/ports/sonic-cd/28 speed pass 2: with entity, ~30
         // instructions a VM instruction when computed for every opcode; scriptInfo through a call, which keeps the code
         // small, 67 uses): no opcode changes objectLoop, activePlayer or the running entity's type before using them,
         // and the write-back below never uses them, so each use sees the value the upstream definitions give.
@@ -3341,7 +3341,7 @@ void ProcessScript(int scriptCodeStart, int jumpTableStart, byte scriptSub)
             case FUNC_DEC: --scriptEng.operands[0]; break;
             case FUNC_MUL: scriptEng.operands[0] *= scriptEng.operands[1]; break;
             case FUNC_DIV:
-#if RETRO_PLATFORM == RETRO_PS1 // GCC's zero-division check is a `break 7` trap on the R3000A (docs/09)
+#if RETRO_PLATFORM == RETRO_PS1 // GCC's zero-division check is a `break 7` trap on the R3000A (docs/hardware/09)
                 if (!scriptEng.operands[1]) {
                     g_ps1ScriptDivZero = g_ps1ScriptDivZero + 1;
                     scriptEng.operands[0] = 0;
@@ -4535,7 +4535,7 @@ void ProcessScript(int scriptCodeStart, int jumpTableStart, byte scriptSub)
             }
             case FUNC_PS1PARALLAXRAMP: {
                 // R11A's 3DRamp player-interaction sub adds a ramp to 128 parallax rows every frame, ~1,000 VM
-                // instructions (~119 hblanks, docs/28 speed pass 2):
+                // instructions (~119 hblanks, docs/ports/sonic-cd/28 speed pass 2):
                 //   while (pos0 < end) { t1 = t0; t1 *= t2; t1 >>= shift; hParallax.scrollPos[pos0] += t1; ++pos0; --t2 }
                 // tools/scripts/patch_bytecode.py swaps that loop's WLower opcode for this one: the operands stay
                 // WLower's (jump table entry, ARRAYPOS0, end) and the body stays in place (its instruction lengths fixed
@@ -4560,7 +4560,7 @@ void ProcessScript(int scriptCodeStart, int jumpTableStart, byte scriptSub)
             }
             case FUNC_PS1TITLEWATER: {
                 // The Title's Background draw sub draws the water strips in script: ~20 iterations of 13 VM instructions
-                // a frame (docs/28 speed pass 2):
+                // a frame (docs/ports/sonic-cd/28 speed pass 2):
                 //   while (t0 < end) { e = objectEntityList[pos0]; e.XPos += t1; if (e.XPos > 0x2000000) e.XPos -= 0x2000000;
                 //     t2 = e.XPos >> 16; ++pos0; DrawSpriteScreenXY t0, t2, 0; ++t0; DrawSpriteScreenXY t0, t2, 0; ++t0;
                 //     t1 += 8192 }
@@ -4596,7 +4596,7 @@ void ProcessScript(int scriptCodeStart, int jumpTableStart, byte scriptSub)
             case FUNC_PS1SAVEOBJECTS: {
                 // Script function 46 (GS000), called by every time warp: it records in SAVERAM 7168-8191 which of the
                 // objects 32-1055 are gone (so the other time period keeps them gone): ~10,000 VM instructions in one
-                // frame, a 9-vsync freeze (docs/28 speed pass 2). The loop:
+                // frame, a 9-vsync freeze (docs/ports/sonic-cd/28 speed pass 2). The loop:
                 //   while (pos0 < 1056) { if (type == 0) bit(b, 1) else if (type == 12) bit(b, 1)
                 //     else if (type == 16) bit(b, state == 2) else if (type == 17) bit(b, state == 2)
                 //     else { bit(b, 0); bit(t1, type == GLOBAL[51]) }  ++pos0; ++pos1 }
@@ -4664,7 +4664,7 @@ void ProcessScript(int scriptCodeStart, int jumpTableStart, byte scriptSub)
             }
             case FUNC_PS1AIRBUBBLE: {
                 // Tidal Tempest's AirBubble main sub: 30-40 VM instructions per bubble a frame (~17 hblanks in R41A,
-                // docs/28 speed pass 2). tools/scripts/patch_bytecode.py checks the whole sub (55 instructions, 279
+                // docs/ports/sonic-cd/28 speed pass 2). tools/scripts/patch_bytecode.py checks the whole sub (55 instructions, 279
                 // words, the globals 79 / 104 / 80 / 69) and swaps only its first opcode (IfEqual 0, OBJECTSTATE, 0) for
                 // this one. The same sub natively (32-bit wrapping and byte fields as the VM's), down to the jump stack
                 // slots its ifs push and the operand registers left by its last instruction, then its End.
@@ -4750,7 +4750,7 @@ void ProcessScript(int scriptCodeStart, int jumpTableStart, byte scriptSub)
             }
             case FUNC_PS1HUDDRAW: {
                 // The HUD's draw sub (GS000; every act, every frame: ~45 VM instructions, ~6 hblanks of VM in R41A,
-                // docs/43 C2). tools/scripts/patch_bytecode.py checks the whole sub (84 instructions, 524 words, its
+                // docs/perf/43 C2). tools/scripts/patch_bytecode.py checks the whole sub (84 instructions, 524 words, its
                 // switch's jump-table entries) and swaps only its first opcode (IfEqual 0, PLAYERVALUE0, 0) for this one.
                 // The same sub natively, statement by statement: the same draws in the same order, the jump stack slots
                 // its ifs / switch push, the temp values and the operand registers each instruction leaves, then its End.
@@ -4857,7 +4857,7 @@ void ProcessScript(int scriptCodeStart, int jumpTableStart, byte scriptSub)
             }
             case FUNC_PS1RINGTOUCH: {
                 // The Ring's playerInteraction sub (GS000; every ring near the player, every frame: ~8 hblanks of VM in
-                // R41A, docs/43 C2). tools/scripts/patch_bytecode.py checks the whole sub (40 instructions, 215 words) and
+                // R41A, docs/perf/43 C2). tools/scripts/patch_bytecode.py checks the whole sub (40 instructions, 215 words) and
                 // swaps only its first opcode (IfNotEqual 0, PLAYERSTATE, 24) for this one. Its head natively -- the state /
                 // plane tests and the touch box -- then, when the ring is collected, the VM goes on at the collect path
                 // (Equal OBJECTTYPE, 10) with the three ifs pushed; otherwise straight to the End, as after its endifs.
@@ -4886,7 +4886,7 @@ void ProcessScript(int scriptCodeStart, int jumpTableStart, byte scriptSub)
             }
             case FUNC_PS1WATERDRAW: {
                 // Tidal Tempest's Water draw sub (the surface's four sprites, every frame: ~3.8 hblanks of VM in R41A,
-                // docs/43 C2). tools/scripts/patch_bytecode.py checks the whole sub (20 instructions, 149 words) and swaps
+                // docs/perf/43 C2). tools/scripts/patch_bytecode.py checks the whole sub (20 instructions, 149 words) and swaps
                 // only its first opcode (Inc OBJECTVALUE0) for this one. The same sub natively, statement by statement:
                 // the same draws in the same order, the jump stack slot, temp values and operand registers it leaves.
                 opcodeSize = 0;
@@ -4923,7 +4923,7 @@ void ProcessScript(int scriptCodeStart, int jumpTableStart, byte scriptSub)
             }
             case FUNC_PS1WATERPALETTE: {
                 // Tidal Tempest's BGEffects draw sub (RS020-RS029: the water's deformation offsets and the palette split at
-                // the water line, every frame, docs/43 C2). tools/scripts/patch_bytecode.py checks the whole sub (17
+                // the water line, every frame, docs/perf/43 C2). tools/scripts/patch_bytecode.py checks the whole sub (17
                 // instructions, 98 words) and swaps only its first opcode (Inc OBJECTVALUE0) for this one. The same sub
                 // natively, statement by statement (byte-wide deformation offsets as the VM writes them back, jump-stack
                 // slots, temp values and operand registers as it leaves them).
@@ -4959,7 +4959,7 @@ void ProcessScript(int scriptCodeStart, int jumpTableStart, byte scriptSub)
             }
             case FUNC_PS1UFOVIEW: {
                 // The special stages' UFO-type objects (main subs) turn their position into the floor camera's frame every
-                // frame: 20 VM instructions, ~6 objects (docs/28 speed pass 2):
+                // frame: 20 VM instructions, ~6 objects (docs/ports/sonic-cd/28 speed pass 2):
                 //   t0 = (XPos - layer0.XPos) >> 8; t1 = (YPos - layer0.ZPos) >> 8
                 //   t2 = Sin(angle) * t1; t3 = Cos(angle) * t0; v[k] = (t2 - t3) >> 9
                 //   t2 = Cos(angle) * t1; t3 = Sin(angle) * t0; v[k + 1] = (t2 + t3) >> 9
@@ -4986,7 +4986,7 @@ void ProcessScript(int scriptCodeStart, int jumpTableStart, byte scriptSub)
             }
             case FUNC_PS1TEXTLOOP: {
                 // The Credits' TextFont1-3 draw subs draw their line a character a frame in script: ~20 VM instructions
-                // and a DrawSpriteXY per character, ~350 characters a frame (~800 hblanks, docs/28 speed pass 2):
+                // and a DrawSpriteXY per character, ~350 characters a frame (~800 hblanks, docs/ports/sonic-cd/28 speed pass 2):
                 //   while (t1 > 0) { GetTextInfo t0, menu 0, TEXTDATA, OBJECTVALUE1, pos0
                 //     switch (t0) { default: frame = 0; if (t0 > 64) if (t0 < 91) { frame = t0; frame -= 64 }
                 //                            if (t0 > 96) if (t0 < 123) { frame = t0; frame -= 96 }

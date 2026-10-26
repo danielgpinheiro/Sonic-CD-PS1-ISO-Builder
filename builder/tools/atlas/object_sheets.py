@@ -1,5 +1,5 @@
 #!/usr/bin/python3
-"""Which sprite sheets each object of a stage may draw with (phase 4, docs/28).
+"""Which sprite sheets each object of a stage may draw with (phase 4, docs/ports/sonic-cd/28).
 
 A script frame is a rect, drawn with whatever sheet the object holds at draw time: objects call
 LoadSpriteSheet in their main / draw subs too (the menu heading switches back to MenuGfx1), so the

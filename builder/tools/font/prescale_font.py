@@ -1,5 +1,5 @@
 #!/usr/bin/python3
-"""Pre-scaled, antialiased bitmap-font glyphs for the RSDKv3 (Sonic CD) PS1 port (docs/28 phase 4).
+"""Pre-scaled, antialiased bitmap-font glyphs for the RSDKv3 (Sonic CD) PS1 port (docs/ports/sonic-cd/28 phase 4).
 
 Sonic CD's Help pages draw a large font (Game/HelpText.bin + Menu/HelpText.gif) with DrawText at 22 %
 (body) and 37.5 % (headings). Upstream's software renderer samples that nearest-neighbour and thin

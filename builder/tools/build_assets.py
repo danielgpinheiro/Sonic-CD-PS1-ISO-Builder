@@ -81,7 +81,7 @@ def main():
                                         '"videos JPN" folder): the JP soundtrack channel of each FMV from there, Steam\'s '
                                         'picture and US channel kept (tools/fmv/build_str.py --jp)')
     ap.add_argument('--lang', default='en', choices=('en', 'jp'),
-                    help="the disc's language (one disc per language, docs/28 phase 4)")
+                    help="the disc's language (one disc per language, docs/ports/sonic-cd/28 phase 4)")
     ap.add_argument('--disc-tools', action='store_true', help='also require mkpsxiso (the disc step that follows)')
     a = ap.parse_args()
     os.environ.update(check_tools(need_disc=a.disc_tools))  # the converters read PSXAVENC / FFMPEG / ... from here
@@ -98,14 +98,14 @@ def main():
         print('[1 data] copy %s' % a.data, flush=True)
         shutil.copytree(a.data, os.path.join(iso, 'Data'), ignore=shutil.ignore_patterns('.DS_Store'))
     data = os.path.join(iso, 'Data')
-    # PS1 edits to the script bytecode (Help & Options without HOW TO PLAY / CONTROLS: docs/28).
+    # PS1 edits to the script bytecode (Help & Options without HOW TO PLAY / CONTROLS: docs/ports/sonic-cd/28).
     r = run('1 scripts', [PY, os.path.join(HERE, 'scripts', 'patch_bytecode.py'), data], capture_output=True, text=True)
     print('[1 scripts] ' + r.stdout.strip())
 
     cxx = os.environ['CXX']
     run('2 manifest', ['make', '-s', '-C', os.path.join(HERE, 'rsdkmanifest'), 'CXX=' + cxx])
     run('3 fonts', [PY, os.path.join(HERE, 'font', 'prescale_font.py'), data, '--lang', a.lang])
-    # One manifest + atlas set per selectable player (docs/28 3.2: Sonic and Tails don't fit one atlas):
+    # One manifest + atlas set per selectable player (docs/ports/sonic-cd/28 3.2: Sonic and Tails don't fit one atlas):
     # player list position 0 = Sonic -> <Stage>.atl, 1 = Tails -> <Stage>_t.atl (the act's placed
     # Player Object loads the player's .ani; ps1/sprite_atlas picks the file by playerListPos).
     for player, suffix in ((0, ''), (1, '_t')):
